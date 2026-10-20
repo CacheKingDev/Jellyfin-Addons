@@ -104,7 +104,7 @@ git init
 git add .
 git commit -m "Movie Code 1.0.0.0"
 git branch -M main
-git remote add origin https://github.com/<OWNER>/<REPO>.git
+git remote add origin https://github.com/CacheKingDev/Jellyfin-Addons.git
 git push -u origin main
 ```
 
@@ -125,13 +125,13 @@ Der Workflow `.github/workflows/release.yml` baut und testet das Plugin, erzeugt
 2. Folgende URL hinzufügen:
 
    ```
-   https://github.com/<OWNER>/<REPO>/releases/latest/download/manifest.json
+   https://github.com/CacheKingDev/Jellyfin-Addons/releases/latest/download/manifest.json
    ```
 
 3. Speichern und unter **Dashboard → Plugins → Katalog** nach „Movie Code“ suchen.
 4. Plugin installieren und Jellyfin neu starten.
 
-`<OWNER>` und `<REPO>` durch den eigenen GitHub-Benutzernamen und Repository-Namen ersetzen. Die URL zeigt immer auf das neueste Release, sodass weitere Versionen automatisch angeboten werden.
+Die URL zeigt immer auf das neueste Release, sodass weitere Versionen automatisch angeboten werden. Bei einem Fork müssen `CacheKingDev/Jellyfin-Addons` durch den eigenen Benutzernamen und Repository-Namen ersetzt werden.
 
 ### Hinweise
 
