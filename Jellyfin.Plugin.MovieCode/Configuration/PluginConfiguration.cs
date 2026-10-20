@@ -38,6 +38,11 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     public bool RestrictOnlyVideo { get; set; } = true;
 
     /// <summary>
+    /// Gets or sets a value indicating whether das Code-Popup im Jellyfin-Web-Client angezeigt wird.
+    /// </summary>
+    public bool EnableWebPopup { get; set; } = true;
+
+    /// <summary>
     /// Gets or sets die Überschrift der Sperrmeldung.
     /// </summary>
     public string LockedMessageHeader { get; set; } = "Film gesperrt";

@@ -110,18 +110,15 @@ public sealed class GrantStore
 
     /// <summary>
     /// Erzeugt eine neue Freigabe und ersetzt eine eventuell vorhandene Freigabe des Benutzers.
+    /// Der Film wird erst beim Einlösen des Codes oder beim ersten Wiedergabestart festgelegt.
     /// </summary>
     /// <param name="userId">Benutzer-ID.</param>
     /// <param name="userName">Benutzername.</param>
-    /// <param name="itemId">Medien-ID.</param>
-    /// <param name="itemName">Medientitel.</param>
     /// <param name="validityHours">Gültigkeit in Stunden; 0 bedeutet unbegrenzt.</param>
     /// <returns>Die neue Freigabe und der Klartext-Code.</returns>
     public (MovieGrant Grant, string Code) Create(
         Guid userId,
         string userName,
-        Guid itemId,
-        string itemName,
         int validityHours)
     {
         lock (_sync)
@@ -138,8 +135,6 @@ public sealed class GrantStore
                 Id = Guid.NewGuid(),
                 UserId = userId,
                 UserName = userName,
-                ItemId = itemId,
-                ItemName = itemName,
                 CodeHash = hash,
                 CodeSalt = salt,
                 CreatedUtc = now,
@@ -154,11 +149,14 @@ public sealed class GrantStore
     }
 
     /// <summary>
-    /// Versucht, einen Code einzulösen.
+    /// Versucht, einen Code einzulösen. Wird ein Film mitgegeben, wird die Freigabe
+    /// sofort an diesen Film gebunden.
     /// </summary>
     /// <param name="code">Benutzereingabe.</param>
+    /// <param name="itemId">Der gerade gestartete Film, falls bekannt.</param>
+    /// <param name="itemName">Titel des Films, falls bekannt.</param>
     /// <returns>Ergebnis der Prüfung.</returns>
-    public UnlockResult TryUnlock(string code)
+    public UnlockResult TryUnlock(string code, Guid? itemId = null, string? itemName = null)
     {
         lock (_sync)
         {
@@ -182,6 +180,7 @@ public sealed class GrantStore
 
                 grant.Status = GrantStatus.Active;
                 grant.UnlockedUtc = _timeProvider.GetUtcNow();
+                BindItem(grant, itemId, itemName);
                 Save();
                 return UnlockResult.Success(grant.Clone());
             }
@@ -199,12 +198,14 @@ public sealed class GrantStore
     }
 
     /// <summary>
-    /// Prüft, ob ein Benutzer ein Medium abspielen darf.
+    /// Prüft, ob ein Benutzer ein Medium abspielen darf. Ist die Freigabe noch an
+    /// keinen Film gebunden, wird sie beim ersten Start an dieses Medium gebunden.
     /// </summary>
     /// <param name="userId">Benutzer-ID.</param>
     /// <param name="itemId">Medien-ID.</param>
+    /// <param name="itemName">Titel des Mediums.</param>
     /// <returns>Entscheidung und Freigabe.</returns>
-    public PlaybackEvaluation Evaluate(Guid userId, Guid itemId)
+    public PlaybackEvaluation Evaluate(Guid userId, Guid itemId, string? itemName = null)
     {
         lock (_sync)
         {
@@ -223,12 +224,36 @@ public sealed class GrantStore
                 return new PlaybackEvaluation(PlaybackDecision.Unrestricted, null);
             }
 
-            return grant.Status switch
+            if (grant.Status == GrantStatus.Active)
             {
-                GrantStatus.Pending => new PlaybackEvaluation(PlaybackDecision.Blocked, grant.Clone()),
-                GrantStatus.Active when grant.ItemId == itemId => new PlaybackEvaluation(PlaybackDecision.Allowed, grant.Clone()),
-                _ => new PlaybackEvaluation(PlaybackDecision.Blocked, grant.Clone())
-            };
+                if (grant.ItemId is null)
+                {
+                    BindItem(grant, itemId, itemName);
+                    Save();
+                    return new PlaybackEvaluation(PlaybackDecision.Allowed, grant.Clone());
+                }
+
+                if (grant.ItemId == itemId)
+                {
+                    return new PlaybackEvaluation(PlaybackDecision.Allowed, grant.Clone());
+                }
+            }
+
+            return new PlaybackEvaluation(PlaybackDecision.Blocked, grant.Clone());
+        }
+    }
+
+    private static void BindItem(MovieGrant grant, Guid? itemId, string? itemName)
+    {
+        if (itemId is null || grant.ItemId is not null)
+        {
+            return;
+        }
+
+        grant.ItemId = itemId;
+        if (!string.IsNullOrWhiteSpace(itemName))
+        {
+            grant.ItemName = itemName;
         }
     }
 

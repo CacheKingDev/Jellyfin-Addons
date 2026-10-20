@@ -137,10 +137,10 @@ public sealed class PlaybackGuard : IHostedService, IDisposable
 
         foreach (var userId in GetUserIds(args))
         {
-            var evaluation = _grantStore.Evaluate(userId, args.Item.Id);
+            var evaluation = _grantStore.Evaluate(userId, args.Item.Id, args.Item.Name);
             if (evaluation.Decision == PlaybackDecision.Blocked)
             {
-                await BlockAsync(args.Session, evaluation.Grant, configuration).ConfigureAwait(false);
+                await BlockAsync(args.Session, evaluation.Grant, configuration, args.Item.Name).ConfigureAwait(false);
                 return;
             }
         }
@@ -179,7 +179,11 @@ public sealed class PlaybackGuard : IHostedService, IDisposable
         }
     }
 
-    private async Task BlockAsync(SessionInfo session, MovieGrant? grant, PluginConfiguration configuration)
+    private async Task BlockAsync(
+        SessionInfo session,
+        MovieGrant? grant,
+        PluginConfiguration configuration,
+        string itemName)
     {
         var now = DateTimeOffset.UtcNow;
         if (_lastBlock.TryGetValue(session.Id, out var lastBlock) && now - lastBlock < BlockCooldown)
@@ -202,7 +206,7 @@ public sealed class PlaybackGuard : IHostedService, IDisposable
                 new MessageCommand
                 {
                     Header = configuration.LockedMessageHeader,
-                    Text = BuildBlockedMessage(grant, configuration),
+                    Text = BuildBlockedMessage(grant, configuration, itemName),
                     TimeoutMs = 15000
                 },
                 CancellationToken.None).ConfigureAwait(false);
@@ -226,14 +230,17 @@ public sealed class PlaybackGuard : IHostedService, IDisposable
         }
     }
 
-    private static string BuildBlockedMessage(MovieGrant? grant, PluginConfiguration configuration)
+    private static string BuildBlockedMessage(
+        MovieGrant? grant,
+        PluginConfiguration configuration,
+        string itemName)
     {
         var message = new StringBuilder(configuration.LockedMessageText);
 
         switch (grant?.Status)
         {
             case GrantStatus.Pending:
-                message.Append(" Der Code für \"").Append(grant.ItemName).Append("\" wurde noch nicht eingegeben.");
+                message.Append(" Der Code für \"").Append(itemName).Append("\" wurde noch nicht eingegeben.");
                 break;
             case GrantStatus.Active:
                 message.Append(" Für dich ist nur \"").Append(grant.ItemName).Append("\" freigegeben.");

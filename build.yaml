@@ -1,14 +1,14 @@
 name: "Movie Code"
 guid: "6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64"
-version: "1.0.0.0"
+version: "1.0.1.0"
 targetAbi: "12.1.0.0"
 framework: "net10.0"
-overview: "Einmalcode-Freigabe für genau einen Film pro Benutzer."
+overview: "Code-Popup beim Filmstart: Ein Einmalcode gibt genau einen Film für einen Benutzer frei."
 description: >-
-  Ein Administrator gibt für einen Benutzer genau einen Film frei und erhält
-  einen 6-stelligen Einmalcode. Der Benutzer löst den Code auf einer separaten
-  Seite ein und kann anschließend nur diesen Film abspielen. Nach dem Filmende
-  verfällt die Freigabe.
+  Ein Administrator erzeugt für einen Benutzer einen 6-stelligen Einmalcode.
+  Der Benutzer durchsucht die Mediathek normal; beim Start eines Films fragt
+  ein Popup im Web-Client den Code ab. Danach ist genau dieser Film freigegeben.
+  Nach dem Filmende verfällt die Freigabe.
 category: "General"
 owner: "ben"
 artifacts:

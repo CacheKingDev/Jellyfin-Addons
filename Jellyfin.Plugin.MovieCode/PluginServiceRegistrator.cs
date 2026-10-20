@@ -2,6 +2,7 @@ using Jellyfin.Plugin.MovieCode.Services;
 using MediaBrowser.Common.Configuration;
 using MediaBrowser.Controller;
 using MediaBrowser.Controller.Plugins;
+using Microsoft.AspNetCore.Hosting;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 
@@ -27,6 +28,7 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         });
 
         serviceCollection.AddSingleton(new UnlockRateLimiter(TimeProvider.System));
+        serviceCollection.AddSingleton<IStartupFilter, ClientScriptInjectionStartupFilter>();
         serviceCollection.AddHostedService<PlaybackGuard>();
     }
 }

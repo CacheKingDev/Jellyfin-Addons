@@ -1,7 +1,8 @@
 namespace Jellyfin.Plugin.MovieCode.Models;
 
 /// <summary>
-/// Eine Freigabe für genau einen Film und genau einen Benutzer.
+/// Eine Freigabe für genau einen Benutzer. Der Film wird beim Einlösen des Codes
+/// oder beim ersten Wiedergabestart festgelegt.
 /// </summary>
 public sealed class MovieGrant
 {
@@ -21,9 +22,10 @@ public sealed class MovieGrant
     public string UserName { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets die ID des freigegebenen Mediums.
+    /// Gets or sets die ID des freigegebenen Mediums. <see langword="null"/>,
+    /// solange der Benutzer noch keinen Film gestartet hat.
     /// </summary>
-    public Guid ItemId { get; set; }
+    public Guid? ItemId { get; set; }
 
     /// <summary>
     /// Gets or sets der Titel des freigegebenen Mediums.

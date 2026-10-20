@@ -1,19 +1,30 @@
 # Movie Code
 
-Ein Jellyfin-Plugin, mit dem ein Administrator **genau einen Film für genau einen Benutzer** freigibt. Der Benutzer erhält einen **6-stelligen Einmalcode**, löst ihn auf einer separaten Freigabeseite ein und kann danach ausschließlich diesen Film abspielen. Sobald der Film zu Ende ist, verfällt die Freigabe.
+Ein Jellyfin-Plugin, mit dem ein Administrator **einen Benutzer** für **einen Film** freigibt. Der Benutzer kann die Mediathek normal durchsuchen und Filme ansehen. Sobald er einen Film startet, fragt das Plugin den **6-stelligen Einmalcode** in einem Popup im Web-Client ab. Nach der Eingabe ist genau dieser Film freigegeben. Sobald der Film zu Ende ist, verfällt die Freigabe.
 
 Zielplattform: **Jellyfin 12.1** mit **.NET 10**.
 
 ## Funktionsweise
 
-1. Der Administrator wählt in der Plugin-Konfiguration einen Benutzer und einen Film aus.
-2. Das Plugin erzeugt einen 6-stelligen Code und zeigt ihn **einmalig** an.
-3. Der Benutzer öffnet `http://<server>:8096/MovieCode/` und gibt den Code ein.
-4. Die Freigabe wechselt von `Pending` zu `Active`.
-5. Der Benutzer kann nun in Jellyfin den freigegebenen Film starten. Jede andere Video-Wiedergabe wird beendet.
-6. Wird der Film vollständig angesehen (oder zu mindestens 95 %), wechselt die Freigabe auf `Completed`. Der Benutzer bleibt gesperrt, bis der Administrator die Freigabe aufhebt – optional kann er automatisch wieder freigeschaltet werden.
+1. Der Administrator wählt in der Plugin-Konfiguration nur den Benutzer aus. Das Plugin erzeugt einen 6-stelligen Code und zeigt ihn **einmalig** an.
+2. Der Benutzer durchsucht die Mediathek wie gewohnt. Beim Drücken auf **Abspielen** erscheint das Code-Popup.
+3. Nach Eingabe des Codes wird die Freigabe an den tatsächlich gestarteten Film gebunden.
+4. Der Film startet. Jede andere Video-Wiedergabe wird beendet.
+5. Wird der Film vollständig angesehen (oder zu mindestens 95 %), wechselt die Freigabe auf `Completed`. Der Benutzer bleibt gesperrt, bis der Administrator die Freigabe aufhebt – optional kann er automatisch wieder freigeschaltet werden.
 
-Eine neue Freigabe für denselben Benutzer ersetzt die vorherige.
+Eine neue Freigabe für denselben Benutzer ersetzt die vorherige. Der Film wird erst beim Einlösen des Codes bzw. beim ersten Wiedergabestart festgelegt; der Administrator muss ihn nicht auswählen.
+
+### Popup und native Apps
+
+Das Popup wird per Script-Injection in den Jellyfin-Web-Client eingebunden. Es funktioniert in:
+
+- Browsern (Desktop und mobil)
+- Jellyfin Media Player
+- installierbaren PWAs
+
+Native Apps (Android TV, Roku, iOS/Android-App) können kein Popup anzeigen. Dort erscheint weiterhin die serverseitige Sperrmeldung mit dem Link auf die Freigabeseite. Über diese Seite kann der Code eingegeben werden; der erste danach gestartete Film wird gebunden.
+
+> Die Script-Injection ist kein offizieller Jellyfin-Plugin-Hook. Sie kann durch Änderungen am Web-Client brechen. Die serverseitige Sperre bleibt davon unabhängig bestehen.
 
 ## Installation
 
@@ -35,6 +46,7 @@ Das Skript `build.ps1` erzeugt zusätzlich ein installierbares ZIP unter `dist/`
 | `ExpireOnEarlyStop` | `false` | Freigabe auch dann verbrauchen, wenn der Film vorzeitig gestoppt wird. |
 | `ReleaseAfterCompletion` | `false` | Benutzer nach dem Filmende automatisch wieder uneingeschränkt freischalten. |
 | `RestrictOnlyVideo` | `true` | Nur Videos sperren. Musik und Hörbücher bleiben erlaubt. |
+| `EnableWebPopup` | `true` | Code-Popup im Jellyfin-Web-Client anzeigen. |
 | `LockedMessageHeader` | `Film gesperrt` | Überschrift der Meldung, die bei einer blockierten Wiedergabe erscheint. |
 | `LockedMessageText` | siehe unten | Text der Meldung. |
 
@@ -48,23 +60,24 @@ Standardtext der Sperrmeldung:
 
 1. **Dashboard → Plugins → Movie Code** öffnen.
 2. Benutzer auswählen.
-3. Nach dem Film suchen und ihn auswählen.
-4. **Freigabe erzeugen** – der 6-stellige Code wird nur jetzt angezeigt.
-5. Code an den Benutzer weitergeben (z. B. persönlich oder über einen sicheren Kanal).
-6. Unter „Bestehende Freigaben“ kann der Status eingesehen und eine Freigabe aufgehoben werden.
+3. **6-stelligen Code erzeugen** – der Code wird nur jetzt angezeigt.
+4. Code an den Benutzer weitergeben (z. B. persönlich oder über einen sicheren Kanal).
+5. Unter „Bestehende Freigaben“ kann der Status eingesehen und eine Freigabe aufgehoben werden. Solange der Benutzer noch keinen Film gestartet hat, steht dort „Film noch nicht gewählt“.
 
 ### Als Benutzer
 
-1. Freigabeseite öffnen: `http://<server>:8096/MovieCode/`
-2. 6-stelligen Code eingeben.
-3. Nach der Bestätigung den freigegebenen Film in Jellyfin starten.
+1. In Jellyfin einen Film auswählen und **Abspielen** drücken.
+2. Im Popup den 6-stelligen Code eingeben und **Starten** drücken.
+3. Der Film startet. Andere Filme bleiben gesperrt, bis die Freigabe endet oder der Administrator sie aufhebt.
+
+**Fallback für native Apps:** `http://<server>:8096/MovieCode/` öffnen, Code eingeben und danach den gewünschten Film starten.
 
 ## Status einer Freigabe
 
 | Status | Bedeutung |
 | --- | --- |
 | `Pending` | Code erzeugt, aber noch nicht eingelöst. |
-| `Active` | Code eingelöst, Film darf abgespielt werden. |
+| `Active` | Code eingelöst; der Film ist gebunden und darf abgespielt werden. |
 | `Completed` | Film wurde zu Ende geschaut oder die Freigabe wurde verbraucht. |
 | `Expired` | Code ist abgelaufen, ohne eingelöst zu werden. |
 
@@ -72,16 +85,20 @@ Standardtext der Sperrmeldung:
 
 | Methode | Pfad | Zugriff | Zweck |
 | --- | --- | --- | --- |
-| `GET` | `/MovieCode/` bzw. `/MovieCode/Unlock` | anonym | Freigabeseite (HTML). |
-| `POST` | `/MovieCode/Unlock` | anonym | Code einlösen. Body: `{ "Code": "123456" }` |
+| `GET` | `/MovieCode/` bzw. `/MovieCode/Unlock` | anonym | Freigabeseite als Fallback (HTML). |
+| `POST` | `/MovieCode/Unlock` | anonym | Code einlösen. Body: `{ "code": "123456", "itemId": "..." }` – `itemId` ist optional. |
+| `GET` | `/MovieCode/Status?itemId=...` | angemeldeter Benutzer | Status für das Popup. Liefert `restricted`, `allowed`, `requiresCode`, `itemName` und `message`. |
+| `GET` | `/MovieCode/client.js` | anonym | Popup-Skript für den Web-Client. |
 | `GET` | `/MovieCode/Admin/Grants` | Admin | Alle Freigaben auflisten. |
-| `POST` | `/MovieCode/Admin/Grants` | Admin | Freigabe erzeugen. Body: `{ "UserId": "...", "ItemId": "..." }` |
+| `POST` | `/MovieCode/Admin/Grants` | Admin | Freigabe erzeugen. Body: `{ "userId": "..." }` |
 | `POST` | `/MovieCode/Admin/Grants/{id}/Revoke` | Admin | Freigabe aufheben. |
+
+Die JSON-Antworten verwenden durchgängig camelCase.
 
 ## Sicherheit und Datenschutz
 
 - Codes werden **nicht im Klartext** gespeichert, sondern als PBKDF2-SHA256-Hash mit 16-Byte-Salt und 100.000 Iterationen.
-- Nach dem Einlösen wird der Hash entfernt; der Code kann nicht erneut verwendet werden.
+- Ein Code kann nur einmal eingelöst werden. Nach dem Einlösen akzeptiert die Freigabe keinen weiteren Code; der Hash wird bei Abschluss oder Ablauf entfernt.
 - Fehlversuche werden pro IP begrenzt (Standard: 5 in 10 Minuten).
 - Die Freigabeseite ist anonym erreichbar, aktiviert aber nur die Freigabe des zugeordneten Kontos. Der Code selbst ist das Geheimnis.
 - Für den produktiven Einsatz wird HTTPS empfohlen, damit Codes nicht im Klartext übertragen werden.
@@ -89,7 +106,8 @@ Standardtext der Sperrmeldung:
 ## Bewusste Grenzen
 
 - Das Plugin wertet die von Jellyfin gemeldeten Wiedergaben aus (`ISessionManager`). **Direkte Stream-URLs oder Downloads werden nicht blockiert.** Ein wirksamer Kopierschutz ist damit nicht möglich.
-- Die native Jellyfin-Oberfläche wird nicht verändert. Die Code-Eingabe erfolgt über die separate Seite `/MovieCode/`.
+- Das Popup ist nur im Web-Client (Browser, Jellyfin Media Player, PWA) verfügbar. Native Apps zeigen die serverseitige Sperrmeldung mit Link zur Freigabeseite.
+- Die Script-Injection ist nicht offiziell und kann durch Web-Client-Updates brechen. Die serverseitige Sperre funktioniert unabhängig davon.
 - Standardmäßig werden nur Videos eingeschränkt. Musik, Hörbücher und andere Medien bleiben verfügbar.
 - Die Sperre gilt für das ausgewählte Benutzerkonto, nicht für einzelne Geräte.
 
@@ -162,10 +180,11 @@ Jellyfin.Plugin.MovieCode/
   Plugin.cs                        Plugin-Klasse, GUID, Konfigurationsseite
   PluginServiceRegistrator.cs      Dependency Injection
   Configuration/                   Einstellungen und Admin-Oberfläche
-  Controllers/                     Admin-API und öffentliche Freigabeseite
+  Controllers/                     Admin-API, Status, Freigabeseite und client.js
   Models/                          DTOs, Freigabe und Status
-  Services/                        Freigaben, Hashing, Rate-Limit, Wiedergabesperre
-  Web/                             Eingebettete Freigabeseite
+  Services/                        Freigaben, Hashing, Rate-Limit, Wiedergabesperre,
+                                   Script-Injection in den Web-Client
+  Web/                             Eingebettete Freigabeseite und Popup-Skript
 Jellyfin.Plugin.MovieCode.Tests/   Unit-Tests
 ```
 
@@ -182,5 +201,6 @@ Die Datei wird atomar geschrieben und übersteht Neustarts.
 ## Getestet mit
 
 - Jellyfin 12.1.0 (Docker) unter .NET 10
-- Unit-Tests: Freigabe-Lebenszyklus, Hashing, Rate-Limit
+- Unit-Tests: Freigabe-Lebenszyklus, Film-Bindung, Hashing, Rate-Limit
 - Integrationstest: Anmeldung, Bibliotheksscan, Freigabe erzeugen, Code einlösen, erlaubte und blockierte Wiedergabe, Abschluss nach Filmende, Aufheben der Freigabe, Persistenz über Neustart
+- Browsertest (Edge/Playwright): Popup beim Play, Code-Eingabe, Fehlercode, Abbrechen, Sperr-Dialog bei anderem Film, tatsächlicher Videostart nach Freigabe

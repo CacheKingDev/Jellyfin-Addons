@@ -228,7 +228,8 @@
         </div>
 
         <h1>Einmalcode eingeben</h1>
-        <p>Gib den 6-stelligen Code ein, den du für deinen Film erhalten hast.</p>
+        <p>Gib den 6-stelligen Code ein und starte danach den gewünschten Film in Jellyfin.
+           Der erste gestartete Film wird für dich freigegeben.</p>
 
         <form id="unlock-form" novalidate>
             <label for="code">6-stelliger Code</label>
@@ -247,7 +248,9 @@
         <div id="result" class="result" role="status" aria-live="polite"></div>
 
         <div class="hint" id="code-help">
-            <p>Der Code ist nur für den ausgewählten Film gültig und kann nur einmal eingelöst werden.</p>
+            <p>Der Code kann nur einmal eingelöst werden und gilt für den ersten Film, den du danach startest.</p>
+            <p>Im Browser und in Jellyfin Media Player erscheint das Code-Fenster direkt beim Start des Films.
+               Diese Seite ist der Fallback für native Apps.</p>
             <p>Nach dem Filmende verfällt die Freigabe. Danach wendest du dich an den Administrator.</p>
             <p><a href="../">Zurück zu Jellyfin</a></p>
         </div>

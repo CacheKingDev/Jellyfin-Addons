@@ -4,7 +4,7 @@
     <TargetFramework>net10.0</TargetFramework>
     <RootNamespace>Jellyfin.Plugin.MovieCode</RootNamespace>
     <AssemblyName>Jellyfin.Plugin.MovieCode</AssemblyName>
-    <Version>1.0.0.0</Version>
+    <Version>1.0.1.0</Version>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
     <IsPackable>false</IsPackable>
   </PropertyGroup>
@@ -27,6 +27,8 @@
     <EmbeddedResource Include="Configuration\configPage.html" />
     <None Remove="Web\unlock.html" />
     <EmbeddedResource Include="Web\unlock.html" />
+    <None Remove="Web\client.js" />
+    <EmbeddedResource Include="Web\client.js" />
   </ItemGroup>
 
 </Project>

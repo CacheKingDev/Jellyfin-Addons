@@ -1,7 +1,6 @@
 using Jellyfin.Plugin.MovieCode.Configuration;
 using Jellyfin.Plugin.MovieCode.Models;
 using Jellyfin.Plugin.MovieCode.Services;
-using MediaBrowser.Controller.Entities;
 using MediaBrowser.Controller.Library;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -18,22 +17,16 @@ public sealed class MovieCodeAdminController : ControllerBase
 {
     private readonly GrantStore _grantStore;
     private readonly IUserManager _userManager;
-    private readonly ILibraryManager _libraryManager;
 
     /// <summary>
     /// Initializes a new instance of the <see cref="MovieCodeAdminController"/> class.
     /// </summary>
     /// <param name="grantStore">Freigaben.</param>
     /// <param name="userManager">Benutzerverwaltung.</param>
-    /// <param name="libraryManager">Medienverwaltung.</param>
-    public MovieCodeAdminController(
-        GrantStore grantStore,
-        IUserManager userManager,
-        ILibraryManager libraryManager)
+    public MovieCodeAdminController(GrantStore grantStore, IUserManager userManager)
     {
         _grantStore = grantStore;
         _userManager = userManager;
-        _libraryManager = libraryManager;
     }
 
     /// <summary>
@@ -63,9 +56,10 @@ public sealed class MovieCodeAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Erzeugt einen neuen Einmalcode für Benutzer und Film.
+    /// Erzeugt einen neuen Einmalcode für einen Benutzer. Der Film wird erst beim
+    /// Start der Wiedergabe festgelegt.
     /// </summary>
-    /// <param name="request">Benutzer und Film.</param>
+    /// <param name="request">Der ausgewählte Benutzer.</param>
     /// <returns>Der Code wird nur in dieser Antwort einmalig zurückgegeben.</returns>
     [HttpPost("Grants")]
     [Produces("application/json")]
@@ -77,23 +71,10 @@ public sealed class MovieCodeAdminController : ControllerBase
             return BadRequest(new { message = "Benutzer nicht gefunden." });
         }
 
-        var item = _libraryManager.GetItemById(request.ItemId);
-        if (item is null)
-        {
-            return BadRequest(new { message = "Medium nicht gefunden." });
-        }
-
-        if (item is not Video)
-        {
-            return BadRequest(new { message = "Es können nur Filme bzw. Videos freigegeben werden." });
-        }
-
         var configuration = GetConfiguration();
         var (grant, code) = _grantStore.Create(
             user.Id,
             user.Username,
-            item.Id,
-            item.Name,
             configuration.CodeValidityHours);
 
         var unlockUrl = GetUnlockUrl(configuration);
@@ -101,7 +82,6 @@ public sealed class MovieCodeAdminController : ControllerBase
             grant.Id,
             code,
             user.Username,
-            item.Name,
             grant.ExpiresUtc,
             unlockUrl));
     }

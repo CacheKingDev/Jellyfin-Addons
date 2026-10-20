@@ -17,36 +17,56 @@ public sealed class GrantStoreTests : IDisposable
     }
 
     [Fact]
-    public void Create_ReturnsSixDigitCodeAndPersistsGrant()
+    public void Create_ReturnsSixDigitCodeAndLeavesItemOpen()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var itemId = Guid.NewGuid();
 
-        var (grant, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
+        var (grant, code) = store.Create(userId, "Kind", 24);
 
         Assert.Equal(6, code.Length);
         Assert.Equal(userId, grant.UserId);
-        Assert.Equal(itemId, grant.ItemId);
+        Assert.Null(grant.ItemId);
         Assert.Equal(GrantStatus.Pending, grant.Status);
         Assert.True(File.Exists(_filePath));
         Assert.Single(store.GetAll());
     }
 
     [Fact]
-    public void Unlock_WithCorrectCode_ActivatesGrant()
+    public void Unlock_WithCorrectCodeAndItem_BindsGrant()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
+        var (_, code) = store.Create(userId, "Kind", 24);
 
-        var result = store.TryUnlock(code);
+        var result = store.TryUnlock(code, itemId, "Der Film");
 
         Assert.Equal(UnlockStatus.Success, result.Status);
         Assert.NotNull(result.Grant);
         Assert.Equal(GrantStatus.Active, result.Grant.Status);
+        Assert.Equal(itemId, result.Grant.ItemId);
+        Assert.Equal("Der Film", result.Grant.ItemName);
         Assert.NotNull(result.Grant.UnlockedUtc);
+    }
+
+    [Fact]
+    public void Unlock_WithoutItem_BindsOnFirstPlayback()
+    {
+        var store = CreateStore();
+        var userId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var (_, code) = store.Create(userId, "Kind", 24);
+
+        var result = store.TryUnlock(code);
+        Assert.Equal(UnlockStatus.Success, result.Status);
+        Assert.Null(result.Grant!.ItemId);
+
+        var evaluation = store.Evaluate(userId, itemId, "Der Film");
+
+        Assert.Equal(PlaybackDecision.Allowed, evaluation.Decision);
+        Assert.Equal(itemId, evaluation.Grant!.ItemId);
+        Assert.Equal("Der Film", evaluation.Grant.ItemName);
     }
 
     [Fact]
@@ -54,8 +74,7 @@ public sealed class GrantStoreTests : IDisposable
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var itemId = Guid.NewGuid();
-        var (grant, _) = store.Create(userId, "Kind", itemId, "Der Film", 24);
+        var (grant, _) = store.Create(userId, "Kind", 24);
 
         var result = store.TryUnlock("000000");
 
@@ -70,10 +89,27 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
+        var (_, code) = store.Create(userId, "Kind", 24);
 
-        Assert.Equal(UnlockStatus.Success, store.TryUnlock(code).Status);
-        Assert.Equal(UnlockStatus.AlreadyUsed, store.TryUnlock(code).Status);
+        Assert.Equal(UnlockStatus.Success, store.TryUnlock(code, itemId, "Der Film").Status);
+        Assert.Equal(UnlockStatus.AlreadyUsed, store.TryUnlock(code, itemId, "Der Film").Status);
+    }
+
+    [Fact]
+    public void Unlock_SecondTimeWithOtherItem_DoesNotRebind()
+    {
+        var store = CreateStore();
+        var userId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var otherItemId = Guid.NewGuid();
+        var (_, code) = store.Create(userId, "Kind", 24);
+        store.TryUnlock(code, itemId, "Der Film");
+
+        var result = store.TryUnlock(code, otherItemId, "Anderer Film");
+
+        Assert.Equal(UnlockStatus.AlreadyUsed, result.Status);
+        Assert.Equal(itemId, store.GetForUser(userId)!.ItemId);
+        Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, otherItemId).Decision);
     }
 
     [Fact]
@@ -83,8 +119,8 @@ public sealed class GrantStoreTests : IDisposable
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
         var otherItemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
-        store.TryUnlock(code);
+        var (_, code) = store.Create(userId, "Kind", 24);
+        store.TryUnlock(code, itemId, "Der Film");
 
         Assert.Equal(PlaybackDecision.Allowed, store.Evaluate(userId, itemId).Decision);
         Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, otherItemId).Decision);
@@ -96,7 +132,7 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        store.Create(userId, "Kind", itemId, "Der Film", 24);
+        store.Create(userId, "Kind", 24);
 
         Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, itemId).Decision);
     }
@@ -115,8 +151,8 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (grant, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
-        store.TryUnlock(code);
+        var (grant, code) = store.Create(userId, "Kind", 24);
+        store.TryUnlock(code, itemId, "Der Film");
 
         Assert.True(store.Complete(grant.Id, releaseUser: false));
 
@@ -133,8 +169,8 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (grant, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
-        store.TryUnlock(code);
+        var (grant, code) = store.Create(userId, "Kind", 24);
+        store.TryUnlock(code, itemId, "Der Film");
 
         Assert.True(store.Complete(grant.Id, releaseUser: true));
         Assert.Null(store.GetForUser(userId));
@@ -147,7 +183,7 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (grant, _) = store.Create(userId, "Kind", itemId, "Der Film", 24);
+        var (grant, _) = store.Create(userId, "Kind", 24);
 
         Assert.True(store.Remove(grant.Id));
         Assert.False(store.Remove(grant.Id));
@@ -160,7 +196,7 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", itemId, "Der Film", 24);
+        var (_, code) = store.Create(userId, "Kind", 24);
 
         _clock.Advance(TimeSpan.FromHours(25));
 
@@ -175,8 +211,7 @@ public sealed class GrantStoreTests : IDisposable
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", itemId, "Der Film", 0);
+        var (_, code) = store.Create(userId, "Kind", 0);
 
         _clock.Advance(TimeSpan.FromDays(3650));
 
@@ -188,15 +223,13 @@ public sealed class GrantStoreTests : IDisposable
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var firstItemId = Guid.NewGuid();
-        var secondItemId = Guid.NewGuid();
-        var (_, firstCode) = store.Create(userId, "Kind", firstItemId, "Film eins", 24);
+        var (_, firstCode) = store.Create(userId, "Kind", 24);
 
         _clock.Advance(TimeSpan.FromMinutes(1));
-        var (_, secondCode) = store.Create(userId, "Kind", secondItemId, "Film zwei", 24);
+        var (_, secondCode) = store.Create(userId, "Kind", 24);
 
         Assert.Single(store.GetAll());
-        Assert.Equal(secondItemId, store.GetForUser(userId)!.ItemId);
+        Assert.Null(store.GetForUser(userId)!.ItemId);
         Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(firstCode).Status);
         Assert.Equal(UnlockStatus.Success, store.TryUnlock(secondCode).Status);
     }
@@ -209,10 +242,10 @@ public sealed class GrantStoreTests : IDisposable
         string code;
 
         var firstStore = CreateStore();
-        (_, code) = firstStore.Create(userId, "Kind", itemId, "Der Film", 24);
+        (_, code) = firstStore.Create(userId, "Kind", 24);
 
         var secondStore = CreateStore();
-        var result = secondStore.TryUnlock(code);
+        var result = secondStore.TryUnlock(code, itemId, "Der Film");
 
         Assert.Equal(UnlockStatus.Success, result.Status);
         Assert.Equal(userId, result.Grant!.UserId);

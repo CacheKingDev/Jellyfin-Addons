@@ -139,8 +139,9 @@
                     <h1 class="sectionTitle">Movie Code</h1>
                 </div>
                 <p class="fieldDescription">
-                    Ein ausgewählter Benutzer darf nur den freigegebenen Film starten. Dafür muss er vorher
-                    einen 6-stelligen Einmalcode auf der Freigabeseite eingeben. Nach dem Filmende verfällt die Freigabe.
+                    Ein ausgewählter Benutzer kann die Mediathek normal durchsuchen. Sobald er einen Film startet,
+                    fragt das Plugin den 6-stelligen Einmalcode ab und gibt danach genau diesen Film frei.
+                    Nach dem Filmende verfällt die Freigabe.
                 </p>
 
                 <h2 class="sectionTitle">Einstellungen</h2>
@@ -194,6 +195,17 @@
                         </label>
                     </div>
 
+                    <div class="checkboxContainer checkboxContainer-withDescription">
+                        <label class="emby-checkbox-label">
+                            <input id="EnableWebPopup" is="emby-checkbox" type="checkbox" />
+                            <span>Code-Popup im Jellyfin-Web-Client anzeigen</span>
+                        </label>
+                        <div class="fieldDescription">
+                            Gilt für Browser, Jellyfin Media Player und PWA. Native Apps zeigen kein Popup;
+                            dort kann der Code weiterhin über die Freigabeseite eingegeben werden.
+                        </div>
+                    </div>
+
                     <div class="inputContainer">
                         <label class="inputLabel inputLabelUnfocused" for="LockedMessageHeader">Überschrift der Sperrmeldung</label>
                         <input id="LockedMessageHeader" is="emby-input" type="text" maxlength="80" />
@@ -220,16 +232,11 @@
                         <label class="selectLabel" for="GrantUser">Benutzer</label>
                         <select id="GrantUser" is="emby-select" class="emby-select-withcolor emby-select"></select>
                     </div>
+                    <p class="fieldDescription">
+                        Der Benutzer wählt den Film selbst aus. Der Code wird beim ersten Start an diesen Film gebunden.
+                    </p>
 
-                    <div class="inputContainer">
-                        <label class="inputLabel inputLabelUnfocused" for="MovieSearch">Film suchen</label>
-                        <input id="MovieSearch" is="emby-input" type="search" placeholder="Mindestens 2 Zeichen eingeben..." autocomplete="off" />
-                    </div>
-
-                    <div id="SearchResults" class="movieCodeResults"></div>
-                    <div id="SelectedMovie" class="movieCodeSelected" style="display: none;"></div>
-
-                    <button id="CreateGrantButton" is="emby-button" type="button" class="raised button-submit block emby-button" disabled>
+                    <button id="CreateGrantButton" is="emby-button" type="button" class="raised button-submit block emby-button">
                         <span>6-stelligen Code erzeugen</span>
                     </button>
 
@@ -242,8 +249,11 @@
                                 <span>Code kopieren</span>
                             </button>
                             <button id="CopyLinkButton" is="emby-button" type="button" class="raised emby-button">
-                                <span>Freigabe-Link kopieren</span>
+                                <span>Link zur Freigabeseite kopieren</span>
                             </button>
+                        </div>
+                        <div class="fieldDescription">
+                            Das Popup erscheint im Web-Client automatisch. Der Link ist der Fallback für native Apps.
                         </div>
                     </div>
                 </div>
@@ -262,8 +272,6 @@
 
                 var pluginId = '6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64';
                 var page = document.querySelector('#MovieCodeConfigPage');
-                var selectedItem = null;
-                var searchTimer = null;
 
                 function byId(id) {
                     return document.querySelector('#' + id);
@@ -361,6 +369,7 @@
                         byId('ExpireOnEarlyStop').checked = !!config.ExpireOnEarlyStop;
                         byId('ReleaseAfterCompletion').checked = !!config.ReleaseAfterCompletion;
                         byId('RestrictOnlyVideo').checked = !!config.RestrictOnlyVideo;
+                        byId('EnableWebPopup').checked = config.EnableWebPopup !== false;
                         byId('LockedMessageHeader').value = config.LockedMessageHeader || '';
                         byId('LockedMessageText').value = config.LockedMessageText || '';
                     });
@@ -375,6 +384,7 @@
                         config.ExpireOnEarlyStop = byId('ExpireOnEarlyStop').checked;
                         config.ReleaseAfterCompletion = byId('ReleaseAfterCompletion').checked;
                         config.RestrictOnlyVideo = byId('RestrictOnlyVideo').checked;
+                        config.EnableWebPopup = byId('EnableWebPopup').checked;
                         config.LockedMessageHeader = byId('LockedMessageHeader').value.trim() || 'Film gesperrt';
                         config.LockedMessageText = byId('LockedMessageText').value.trim();
 
@@ -411,100 +421,7 @@
                     });
                 }
 
-                function clearSelection() {
-                    selectedItem = null;
-                    byId('SelectedMovie').style.display = 'none';
-                    byId('SelectedMovie').textContent = '';
-                    byId('CreateGrantButton').disabled = true;
-                }
-
-                function renderSearchResults(items) {
-                    var container = byId('SearchResults');
-                    container.innerHTML = '';
-
-                    if (!items.length) {
-                        var empty = document.createElement('div');
-                        empty.className = 'fieldDescription';
-                        empty.textContent = 'Keine Filme gefunden.';
-                        container.appendChild(empty);
-                        return;
-                    }
-
-                    items.forEach(function (item) {
-                        var row = document.createElement('div');
-                        row.className = 'movieCodeResult';
-                        row.tabIndex = 0;
-
-                        var text = document.createElement('div');
-                        var title = document.createElement('div');
-                        title.className = 'movieCodeResultTitle';
-                        title.textContent = item.Name || '(ohne Titel)';
-                        text.appendChild(title);
-
-                        if (item.ProductionYear) {
-                            var meta = document.createElement('div');
-                            meta.className = 'fieldDescription';
-                            meta.textContent = item.ProductionYear;
-                            text.appendChild(meta);
-                        }
-
-                        row.appendChild(text);
-                        row.addEventListener('click', function () {
-                            selectItem(item);
-                        });
-                        row.addEventListener('keydown', function (event) {
-                            if (event.key === 'Enter' || event.key === ' ') {
-                                event.preventDefault();
-                                selectItem(item);
-                            }
-                        });
-
-                        container.appendChild(row);
-                    });
-                }
-
-                function selectItem(item) {
-                    selectedItem = item;
-                    byId('SearchResults').innerHTML = '';
-                    byId('MovieSearch').value = item.Name || '';
-                    var label = item.Name || '(ohne Titel)';
-                    if (item.ProductionYear) {
-                        label += ' (' + item.ProductionYear + ')';
-                    }
-
-                    byId('SelectedMovie').textContent = 'Ausgewählt: ' + label;
-                    byId('SelectedMovie').style.display = '';
-                    byId('CreateGrantButton').disabled = false;
-                }
-
-                function searchMovies(term) {
-                    if (!term || term.length < 2) {
-                        byId('SearchResults').innerHTML = '';
-                        return;
-                    }
-
-                    apiGet('Items', {
-                        userId: ApiClient.getCurrentUserId(),
-                        searchTerm: term,
-                        includeItemTypes: 'Movie',
-                        recursive: true,
-                        limit: 25,
-                        fields: 'ProductionYear',
-                        enableImages: false,
-                        enableUserData: false
-                    }).then(function (result) {
-                        renderSearchResults(result.Items || []);
-                    }).catch(function () {
-                        showError('Die Filmsuche ist fehlgeschlagen.');
-                    });
-                }
-
                 function createGrant() {
-                    if (!selectedItem) {
-                        showError('Bitte zuerst einen Film auswählen.');
-                        return;
-                    }
-
                     var userId = byId('GrantUser').value;
                     if (!userId) {
                         showError('Bitte einen Benutzer auswählen.');
@@ -513,18 +430,17 @@
 
                     showLoading();
                     apiPost('MovieCode/Admin/Grants', {
-                        userId: userId,
-                        itemId: selectedItem.Id
+                        userId: userId
                     }).then(function (result) {
                         hideLoading();
                         byId('NewGrantBox').style.display = '';
-                        byId('NewGrantCode').textContent = formatCode(result.Code);
-                        byId('NewGrantBox').dataset.code = result.Code;
-                        byId('NewGrantBox').dataset.url = result.UnlockUrl || '';
+                        byId('NewGrantCode').textContent = formatCode(result.code);
+                        byId('NewGrantBox').dataset.code = result.code;
+                        byId('NewGrantBox').dataset.url = result.unlockUrl || '';
 
-                        var meta = result.UserName + ' – ' + result.ItemName;
-                        if (result.ExpiresUtc) {
-                            meta += ' · gültig bis ' + formatDate(result.ExpiresUtc);
+                        var meta = result.userName;
+                        if (result.expiresUtc) {
+                            meta += ' · gültig bis ' + formatDate(result.expiresUtc);
                         } else {
                             meta += ' · unbegrenzt gültig';
                         }
@@ -583,9 +499,10 @@
                         var main = document.createElement('div');
                         main.className = 'movieCodeGrantMain';
 
+                        var itemLabel = grant.itemName || 'Film noch nicht gewählt';
                         var title = document.createElement('div');
                         title.className = 'movieCodeGrantTitle';
-                        title.textContent = grant.itemName;
+                        title.textContent = itemLabel;
                         main.appendChild(title);
 
                         var details = document.createElement('div');
@@ -608,7 +525,7 @@
                         revokeLabel.textContent = 'Aufheben';
                         revoke.appendChild(revokeLabel);
                         revoke.addEventListener('click', function () {
-                            if (!window.confirm('Freigabe für „' + grant.itemName + '“ wirklich aufheben?')) {
+                            if (!window.confirm('Freigabe für „' + itemLabel + '“ wirklich aufheben?')) {
                                 return;
                             }
 
@@ -635,7 +552,6 @@
                 }
 
                 page.addEventListener('pageshow', function () {
-                    clearSelection();
                     loadConfiguration();
                     loadUsers();
                     loadGrants();
@@ -645,19 +561,6 @@
                     event.preventDefault();
                     saveConfiguration();
                     return false;
-                });
-
-                byId('MovieSearch').addEventListener('input', function () {
-                    var term = this.value.trim();
-                    clearSelection();
-
-                    if (searchTimer) {
-                        window.clearTimeout(searchTimer);
-                    }
-
-                    searchTimer = window.setTimeout(function () {
-                        searchMovies(term);
-                    }, 350);
                 });
 
                 byId('CreateGrantButton').addEventListener('click', createGrant);
