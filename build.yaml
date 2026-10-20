@@ -1,0 +1,15 @@
+name: "Movie Code"
+guid: "6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64"
+version: "1.0.0.0"
+targetAbi: "12.1.0.0"
+framework: "net10.0"
+overview: "Einmalcode-Freigabe für genau einen Film pro Benutzer."
+description: >-
+  Ein Administrator gibt für einen Benutzer genau einen Film frei und erhält
+  einen 6-stelligen Einmalcode. Der Benutzer löst den Code auf einer separaten
+  Seite ein und kann anschließend nur diesen Film abspielen. Nach dem Filmende
+  verfällt die Freigabe.
+category: "General"
+owner: "ben"
+artifacts:
+  - "Jellyfin.Plugin.MovieCode.dll"

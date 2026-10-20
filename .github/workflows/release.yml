@@ -1,0 +1,128 @@
+name: Release
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version ohne führendes v (z. B. 1.0.0.0)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+env:
+  PLUGIN_GUID: "6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64"
+  PLUGIN_NAME: "Movie Code"
+  TARGET_ABI: "12.1.0.0"
+  PLUGIN_DESCRIPTION: "Erlaubt einem ausgewählten Benutzer die Wiedergabe genau eines Films, nachdem er einen 6-stelligen Einmalcode eingegeben hat."
+  PLUGIN_OVERVIEW: "Einmalcode-Freigabe für genau einen Film pro Benutzer."
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: .NET 10 einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Version bestimmen
+        id: version
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            VERSION="${{ inputs.version }}"
+          else
+            VERSION="${GITHUB_REF_NAME#v}"
+          fi
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Wiederherstellen
+        run: dotnet restore Jellyfin.Plugin.MovieCode.slnx
+
+      - name: Bauen
+        shell: bash
+        run: dotnet build Jellyfin.Plugin.MovieCode.slnx -c Release --no-restore -p:Version="${{ steps.version.outputs.version }}"
+
+      - name: Testen
+        shell: bash
+        run: dotnet test Jellyfin.Plugin.MovieCode.slnx -c Release --no-build -p:Version="${{ steps.version.outputs.version }}"
+
+      - name: Paket und Manifest erzeugen
+        shell: bash
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          set -euo pipefail
+
+          ZIP_NAME="MovieCode_${VERSION}.zip"
+          mkdir -p dist/stage
+          cp Jellyfin.Plugin.MovieCode/bin/Release/net10.0/Jellyfin.Plugin.MovieCode.dll dist/stage/
+
+          jq -n \
+            --arg name "$PLUGIN_NAME" \
+            --arg guid "$PLUGIN_GUID" \
+            --arg version "$VERSION" \
+            --arg abi "$TARGET_ABI" \
+            --arg description "$PLUGIN_DESCRIPTION" \
+            --arg overview "$PLUGIN_OVERVIEW" \
+            '{
+              category: "General",
+              guid: $guid,
+              name: $name,
+              description: $description,
+              overview: $overview,
+              owner: "ben",
+              targetAbi: $abi,
+              version: $version,
+              status: "Active",
+              autoUpdate: true
+            }' > dist/stage/meta.json
+
+          (cd dist/stage && zip -q -r "../${ZIP_NAME}" .)
+
+          CHECKSUM="$(md5sum "dist/${ZIP_NAME}" | cut -d' ' -f1)"
+          TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+          SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${ZIP_NAME}"
+
+          jq -n \
+            --arg name "$PLUGIN_NAME" \
+            --arg guid "$PLUGIN_GUID" \
+            --arg version "$VERSION" \
+            --arg abi "$TARGET_ABI" \
+            --arg description "$PLUGIN_DESCRIPTION" \
+            --arg overview "$PLUGIN_OVERVIEW" \
+            --arg sourceUrl "$SOURCE_URL" \
+            --arg checksum "$CHECKSUM" \
+            --arg timestamp "$TIMESTAMP" \
+            '[{
+              guid: $guid,
+              name: $name,
+              description: $description,
+              overview: $overview,
+              owner: "ben",
+              category: "General",
+              imageUrl: "",
+              versions: [{
+                version: $version,
+                changelog: ("Version " + $version),
+                targetAbi: $abi,
+                sourceUrl: $sourceUrl,
+                checksum: $checksum,
+                timestamp: $timestamp
+              }]
+            }]' > dist/manifest.json
+
+          gh release create "v${VERSION}" \
+            "dist/${ZIP_NAME}" \
+            "dist/manifest.json" \
+            --title "Movie Code ${VERSION}" \
+            --notes "Movie Code ${VERSION}"

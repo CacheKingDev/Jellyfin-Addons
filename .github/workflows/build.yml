@@ -1,0 +1,36 @@
+name: Build
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: .NET 10 einrichten
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: "10.0.x"
+
+      - name: Wiederherstellen
+        run: dotnet restore Jellyfin.Plugin.MovieCode.slnx
+
+      - name: Bauen
+        run: dotnet build Jellyfin.Plugin.MovieCode.slnx -c Release --no-restore
+
+      - name: Testen
+        run: dotnet test Jellyfin.Plugin.MovieCode.slnx -c Release --no-build
+
+      - name: Plugin-Artefakt hochladen
+        uses: actions/upload-artifact@v4
+        with:
+          name: MovieCode
+          path: Jellyfin.Plugin.MovieCode/bin/Release/net10.0/Jellyfin.Plugin.MovieCode.dll
+          if-no-files-found: error

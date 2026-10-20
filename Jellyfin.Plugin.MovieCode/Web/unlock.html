@@ -1,0 +1,364 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <meta name="robots" content="noindex, nofollow">
+    <title>Film-Freigabe · Jellyfin</title>
+    <style>
+        :root {
+            color-scheme: dark;
+            --background: #101418;
+            --card: #1b2229;
+            --card-border: rgba(255, 255, 255, 0.09);
+            --text: #f2f5f7;
+            --muted: #9aa7b2;
+            --accent: #00a4dc;
+            --accent-hover: #29b6e8;
+            --success: #2ecc71;
+            --error: #ff6b6b;
+            --input: #11171c;
+        }
+
+        @media (prefers-color-scheme: light) {
+            :root {
+                color-scheme: light;
+                --background: #eef2f5;
+                --card: #ffffff;
+                --card-border: rgba(0, 0, 0, 0.08);
+                --text: #1c2429;
+                --muted: #5f6b75;
+                --input: #f6f8fa;
+            }
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        html, body {
+            margin: 0;
+            padding: 0;
+            min-height: 100%;
+        }
+
+        body {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            background:
+                radial-gradient(circle at 20% 0%, rgba(0, 164, 220, 0.18), transparent 45%),
+                var(--background);
+            color: var(--text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            line-height: 1.5;
+        }
+
+        main {
+            width: 100%;
+            max-width: 480px;
+            background: var(--card);
+            border: 1px solid var(--card-border);
+            border-radius: 18px;
+            padding: 32px 28px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        .brand {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 18px;
+            color: var(--accent);
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+
+        .brand-mark {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 34px;
+            height: 34px;
+            border-radius: 10px;
+            background: rgba(0, 164, 220, 0.15);
+            font-size: 18px;
+        }
+
+        h1 {
+            margin: 0 0 8px;
+            font-size: 1.55rem;
+            line-height: 1.25;
+        }
+
+        p {
+            margin: 0 0 20px;
+            color: var(--muted);
+        }
+
+        form {
+            display: flex;
+            flex-direction: column;
+            gap: 14px;
+        }
+
+        label {
+            font-size: 0.85rem;
+            font-weight: 600;
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.06em;
+        }
+
+        input {
+            width: 100%;
+            border: 1px solid var(--card-border);
+            border-radius: 12px;
+            background: var(--input);
+            color: var(--text);
+            padding: 14px 16px;
+            font-size: 2rem;
+            font-weight: 700;
+            letter-spacing: 0.35em;
+            text-align: center;
+            font-variant-numeric: tabular-nums;
+            outline: none;
+            transition: border-color 120ms ease, box-shadow 120ms ease;
+        }
+
+        input:focus {
+            border-color: var(--accent);
+            box-shadow: 0 0 0 3px rgba(0, 164, 220, 0.22);
+        }
+
+        input:disabled {
+            opacity: 0.6;
+        }
+
+        button {
+            border: 0;
+            border-radius: 12px;
+            padding: 14px 18px;
+            background: var(--accent);
+            color: #ffffff;
+            font-size: 1rem;
+            font-weight: 700;
+            cursor: pointer;
+            transition: background 120ms ease, transform 120ms ease;
+        }
+
+        button:hover:not(:disabled) {
+            background: var(--accent-hover);
+        }
+
+        button:active:not(:disabled) {
+            transform: translateY(1px);
+        }
+
+        button:disabled {
+            opacity: 0.45;
+            cursor: not-allowed;
+        }
+
+        .result {
+            display: none;
+            margin-top: 18px;
+            padding: 14px 16px;
+            border-radius: 12px;
+            border: 1px solid transparent;
+            font-size: 0.95rem;
+        }
+
+        .result.is-visible {
+            display: block;
+        }
+
+        .result.is-success {
+            border-color: rgba(46, 204, 113, 0.5);
+            background: rgba(46, 204, 113, 0.12);
+        }
+
+        .result.is-error {
+            border-color: rgba(255, 107, 107, 0.5);
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .result-title {
+            display: block;
+            margin-bottom: 4px;
+            font-weight: 700;
+        }
+
+        .result.is-success .result-title {
+            color: var(--success);
+        }
+
+        .result.is-error .result-title {
+            color: var(--error);
+        }
+
+        .hint {
+            margin-top: 20px;
+            padding-top: 16px;
+            border-top: 1px solid var(--card-border);
+            color: var(--muted);
+            font-size: 0.82rem;
+        }
+
+        .hint p {
+            margin: 0 0 8px;
+        }
+
+        a {
+            color: var(--accent);
+            text-decoration: none;
+        }
+
+        a:hover {
+            text-decoration: underline;
+        }
+    </style>
+</head>
+<body>
+    <main>
+        <div class="brand">
+            <span class="brand-mark" aria-hidden="true">▶</span>
+            <span>Jellyfin · Film-Freigabe</span>
+        </div>
+
+        <h1>Einmalcode eingeben</h1>
+        <p>Gib den 6-stelligen Code ein, den du für deinen Film erhalten hast.</p>
+
+        <form id="unlock-form" novalidate>
+            <label for="code">6-stelliger Code</label>
+            <input id="code"
+                   type="text"
+                   inputmode="numeric"
+                   autocomplete="one-time-code"
+                   pattern="[0-9]{6}"
+                   maxlength="6"
+                   placeholder="000000"
+                   aria-describedby="code-help"
+                   required />
+            <button id="submit" type="submit" disabled>Code prüfen</button>
+        </form>
+
+        <div id="result" class="result" role="status" aria-live="polite"></div>
+
+        <div class="hint" id="code-help">
+            <p>Der Code ist nur für den ausgewählten Film gültig und kann nur einmal eingelöst werden.</p>
+            <p>Nach dem Filmende verfällt die Freigabe. Danach wendest du dich an den Administrator.</p>
+            <p><a href="../">Zurück zu Jellyfin</a></p>
+        </div>
+    </main>
+
+    <script type="text/javascript">
+        (function () {
+            'use strict';
+
+            var form = document.getElementById('unlock-form');
+            var input = document.getElementById('code');
+            var button = document.getElementById('submit');
+            var resultBox = document.getElementById('result');
+            var basePath = window.location.pathname.replace(/\/+$/, '');
+            if (/\/Unlock$/i.test(basePath)) {
+                basePath = basePath.slice(0, -'/Unlock'.length);
+            }
+
+            var endpoint = basePath + '/Unlock';
+
+            function setBusy(isBusy) {
+                button.disabled = isBusy || input.value.replace(/\D/g, '').length !== 6;
+                button.textContent = isBusy ? 'Wird geprüft …' : 'Code prüfen';
+                input.disabled = isBusy;
+            }
+
+            function clearResult() {
+                resultBox.className = 'result';
+                resultBox.textContent = '';
+            }
+
+            function showResult(isSuccess, title, message) {
+                resultBox.className = 'result is-visible ' + (isSuccess ? 'is-success' : 'is-error');
+                resultBox.textContent = '';
+
+                var titleElement = document.createElement('span');
+                titleElement.className = 'result-title';
+                titleElement.textContent = title;
+
+                var messageElement = document.createElement('span');
+                messageElement.textContent = message;
+
+                resultBox.appendChild(titleElement);
+                resultBox.appendChild(messageElement);
+            }
+
+            input.addEventListener('input', function () {
+                var digits = input.value.replace(/\D/g, '').slice(0, 6);
+                if (input.value !== digits) {
+                    input.value = digits;
+                }
+
+                button.disabled = digits.length !== 6;
+                clearResult();
+            });
+
+            form.addEventListener('submit', function (event) {
+                event.preventDefault();
+
+                var code = input.value.replace(/\D/g, '');
+                if (code.length !== 6) {
+                    showResult(false, 'Ungültiger Code', 'Bitte gib genau 6 Ziffern ein.');
+                    return;
+                }
+
+                setBusy(true);
+                clearResult();
+
+                fetch(endpoint, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ code: code })
+                }).then(function (response) {
+                    return response.json().catch(function () {
+                        return { success: false, message: 'Unerwartete Antwort des Servers.' };
+                    }).then(function (data) {
+                        return { ok: response.ok, data: data };
+                    });
+                }).then(function (response) {
+                    setBusy(false);
+
+                    if (response.data && response.data.success) {
+                        var movie = response.data.itemName ? '„' + response.data.itemName + '“' : 'dein Film';
+                        input.disabled = true;
+                        button.disabled = true;
+                        input.value = '';
+                        showResult(
+                            true,
+                            'Freigabe aktiv',
+                            'Du kannst ' + movie + ' jetzt in Jellyfin starten. Die Freigabe verfällt, sobald der Film zu Ende ist.');
+                        return;
+                    }
+
+                    input.value = '';
+                    input.disabled = false;
+                    input.focus();
+                    button.disabled = true;
+                    showResult(
+                        false,
+                        'Code nicht akzeptiert',
+                        (response.data && response.data.message) || 'Der Code ist ungültig oder abgelaufen.');
+                }).catch(function () {
+                    setBusy(false);
+                    input.disabled = false;
+                    input.focus();
+                    showResult(false, 'Verbindungsfehler', 'Der Jellyfin-Server ist nicht erreichbar.');
+                });
+            });
+
+            input.focus();
+        })();
+    </script>
+</body>
+</html>
