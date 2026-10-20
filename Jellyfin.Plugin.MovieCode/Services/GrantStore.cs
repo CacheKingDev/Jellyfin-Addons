@@ -38,7 +38,7 @@ public readonly record struct PlaybackEvaluation(PlaybackDecision Decision, Movi
 /// Ergebnis der Erzeugung eines Code-Pakets.
 /// </summary>
 /// <param name="BatchId">ID des Pakets.</param>
-/// <param name="Codes">Die Klartext-Codes; werden nur einmal zurückgegeben.</param>
+/// <param name="Codes">Die Klartext-Codes; werden zusätzlich für die spätere Anzeige gespeichert.</param>
 /// <param name="Grants">Die gespeicherten Freigaben.</param>
 public sealed record GrantBatchCreation(
     Guid BatchId,
@@ -174,7 +174,8 @@ public sealed class GrantStore
 
     /// <summary>
     /// Erzeugt ein neues Paket aus Einmalcodes und ersetzt alle bisherigen
-    /// Codes des Benutzers. Die Klartext-Codes werden nur einmal zurückgegeben.
+    /// Codes des Benutzers. Die Klartext-Codes werden für noch offene Codes
+    /// gespeichert, damit sie im Admin-Bereich erneut angezeigt werden können.
     /// </summary>
     /// <param name="userId">Benutzer-ID.</param>
     /// <param name="userName">Benutzername.</param>
@@ -242,6 +243,7 @@ public sealed class GrantStore
                     BatchIndex = index,
                     UserId = userId,
                     UserName = userName,
+                    Code = code,
                     CodeHash = hash,
                     CodeSalt = salt,
                     LookupHash = lookupHash,
@@ -310,6 +312,7 @@ public sealed class GrantStore
                 grant.Status = GrantStatus.Active;
                 grant.UnlockedUtc = _timeProvider.GetUtcNow();
                 grant.LookupHash = lookupHash;
+                grant.Code = string.Empty;
                 BindItem(grant, itemId, itemName);
                 Save();
                 return UnlockResult.Success(grant.Clone());
@@ -413,6 +416,7 @@ public sealed class GrantStore
             {
                 grant.Status = GrantStatus.Completed;
                 grant.CompletedUtc = _timeProvider.GetUtcNow();
+                grant.Code = string.Empty;
                 grant.CodeHash = string.Empty;
                 grant.CodeSalt = string.Empty;
                 grant.LookupHash = string.Empty;
@@ -487,6 +491,7 @@ public sealed class GrantStore
                 && grant.ExpiresUtc <= now)
             {
                 grant.Status = GrantStatus.Expired;
+                grant.Code = string.Empty;
                 grant.CodeHash = string.Empty;
                 grant.CodeSalt = string.Empty;
                 grant.LookupHash = string.Empty;
@@ -513,6 +518,8 @@ public sealed class GrantStore
             var changed = false;
             foreach (var grant in _grants)
             {
+                grant.Code ??= string.Empty;
+
                 if (grant.BatchId == Guid.Empty)
                 {
                     grant.BatchId = Guid.NewGuid();
@@ -522,6 +529,13 @@ public sealed class GrantStore
                 if (grant.BatchIndex <= 0)
                 {
                     grant.BatchIndex = 1;
+                    changed = true;
+                }
+
+                // Klartext-Codes nur für noch offene Freigaben behalten.
+                if (grant.Status != GrantStatus.Pending && !string.IsNullOrEmpty(grant.Code))
+                {
+                    grant.Code = string.Empty;
                     changed = true;
                 }
             }

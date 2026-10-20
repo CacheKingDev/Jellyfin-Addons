@@ -8,7 +8,7 @@ Zielplattform: **Jellyfin 12.1** mit **.NET 10**.
 
 ## Funktionsweise
 
-1. Der Administrator öffnet **Benutzer → [Benutzer] → Kindersicherung** und erzeugt dort **10 Einmalcodes**. Das Plugin zeigt die Liste **einmalig** an. Der Administrator kopiert oder speichert sie und gibt dem Benutzer bei Bedarf einen Code weiter.
+1. Der Administrator öffnet **Benutzer → [Benutzer] → Kindersicherung** und erzeugt dort **10 Einmalcodes**. Das Plugin zeigt die Liste an; noch nicht verwendete Codes bleiben dort sichtbar. Der Administrator kopiert oder speichert sie und gibt dem Benutzer bei Bedarf einen Code weiter.
 2. Der Benutzer durchsucht die Mediathek wie gewohnt. Beim Drücken auf **Abspielen** erscheint das Code-Popup.
 3. Nach Eingabe eines noch offenen Codes wird die Freigabe an den tatsächlich gestarteten Film gebunden.
 4. Der Film startet. Jede andere Video-Wiedergabe wird beendet, solange dieser Film aktiv ist.
@@ -63,10 +63,10 @@ Standardtext der Sperrmeldung:
 
 1. **Benutzer** öffnen und beim gewünschten Benutzer das Drei-Punkte-Menü anklicken.
 2. **Kindersicherung** öffnen. Dort erscheint der Bereich **Movie Code – Einmalcodes**.
-3. **10 Einmalcodes erzeugen** – die Liste wird nur jetzt angezeigt. Ein neues Paket ersetzt alle bisherigen Codes dieses Benutzers.
-4. Liste über **Alle Codes kopieren** oder **Liste als TXT herunterladen** sichern und sicher verwahren.
+3. **10 Einmalcodes erzeugen** – die noch offenen Codes bleiben sichtbar; verwendete Codes werden ausgeblendet. Ein neues Paket ersetzt alle bisherigen Codes dieses Benutzers.
+4. Liste über **Alle Codes kopieren** oder **Liste als TXT herunterladen** sichern. Die offenen Codes können später über **Offene Codes anzeigen** erneut kopiert oder heruntergeladen werden.
 5. Dem Benutzer jeweils einen Code weitergeben (z. B. persönlich oder über einen sicheren Kanal). Nach einem Film kann der nächste Code aus der Liste folgen.
-6. Unter **Codes anzeigen** siehst du pro Code, welche Nummern offen, aktiv, verbraucht oder abgelaufen sind. **Paket aufheben** macht alle noch offenen Codes ungültig und hebt die Sperre des Benutzers auf.
+6. Unter **Offene Codes anzeigen** siehst du die noch nicht verwendeten Codes. Verwendete, abgelaufene oder aufgehobene Codes werden dort nicht mehr angezeigt. **Paket aufheben** macht alle noch offenen Codes ungültig und hebt die Sperre des Benutzers auf.
 7. Die globalen Optionen (Gültigkeit, Fehlversuche, Popup, Sperrmeldung) bleiben unter **Dashboard → Plugins → Movie Code**. Von dort führt die Schaltfläche **Benutzerverwaltung öffnen** direkt zur Benutzerliste.
 
 Ein neues Paket für denselben Benutzer ersetzt alle bisherigen Codes. Die alte Liste wird dadurch ungültig, auch wenn sie noch nicht vollständig verbraucht war.
@@ -101,7 +101,7 @@ Ein Paket enthält 10 Codes. Der Status wird pro Code geführt; in der Admin-Obe
 | `GET` | `/MovieCode/client.js` | anonym | Popup-Skript für den Web-Client. |
 | `GET` | `/MovieCode/admin.js` | anonym | Skript, das den Code-Bereich in der Benutzer-Kindersicherung einblendet. Die eigentliche Verwaltung ist nur mit Admin-Rechten möglich. |
 | `GET` | `/MovieCode/Admin/Grants` | Admin | Alle Codes aller Pakete auflisten. |
-| `POST` | `/MovieCode/Admin/Grants` | Admin | Neues Paket aus 10 Einmalcodes erzeugen. Body: `{ "userId": "..." }`; Antwort enthält `batchId` und `codes` (nur einmalig). |
+| `POST` | `/MovieCode/Admin/Grants` | Admin | Neues Paket aus 10 Einmalcodes erzeugen. Body: `{ "userId": "..." }`; Antwort enthält `batchId` und `codes`. Die offenen Codes werden zusätzlich gespeichert und können erneut abgerufen werden. |
 | `POST` | `/MovieCode/Admin/Grants/{id}/Revoke` | Admin | Einzelnen Code aufheben. |
 | `POST` | `/MovieCode/Admin/Grants/Batch/{batchId}/Revoke` | Admin | Gesamtes Code-Paket aufheben. |
 
@@ -109,10 +109,11 @@ Die JSON-Antworten verwenden durchgängig camelCase.
 
 ## Sicherheit und Datenschutz
 
-- Codes werden **nicht im Klartext** gespeichert, sondern als PBKDF2-SHA256-Hash mit 16-Byte-Salt und 100.000 Iterationen.
+- Zur Validierung werden Codes als PBKDF2-SHA256-Hash mit 16-Byte-Salt und 100.000 Iterationen gespeichert.
+- Zusätzlich wird der Klartext **nur für noch offene Codes** in der geschützten Grant-Datei im Jellyfin-Konfigurationsordner abgelegt, damit Administratoren sie erneut anzeigen können. Nach Einlösung, Ablauf oder Aufheben wird der Klartext entfernt.
 - Für schnelle Lookups und zur Vermeidung doppelter Codes wird zusätzlich ein HMAC-SHA256-Lookup-Hash gespeichert. Der zugehörige Schlüssel liegt in einer separaten Datei, damit ein reines Backup der Freigabedaten keine Rückschlüsse auf gültige Codes erlaubt.
 - Jeder Code kann nur einmal eingelöst werden. Nach dem Einlösen wird sein Hash bei Abschluss oder Ablauf entfernt; die übrigen Codes des Pakets bleiben unabhängig davon gültig.
-- Ein neues Paket ersetzt alle bisherigen Codes des Benutzers. Die Liste wird nur einmal angezeigt und kann danach nicht erneut aus dem Plugin gelesen werden.
+- Ein neues Paket ersetzt alle bisherigen Codes des Benutzers. Noch offene Codes bleiben bis zur Verwendung sichtbar; verwendete Codes werden ausgeblendet.
 - Fehlversuche werden pro IP begrenzt (Standard: 5 in 10 Minuten).
 - Die Freigabeseite ist anonym erreichbar, aktiviert aber nur die Freigabe des zugeordneten Kontos. Der Code selbst ist das Geheimnis.
 - Für den produktiven Einsatz wird HTTPS empfohlen, damit Codes nicht im Klartext übertragen werden.
@@ -135,7 +136,7 @@ Das Projekt ist so vorbereitet, dass GitHub Actions ein Release mit ZIP und `man
 ```powershell
 git init
 git add .
-git commit -m "Movie Code 1.0.2.2"
+git commit -m "Movie Code 1.0.3.0"
 git branch -M main
 git remote add origin https://github.com/CacheKingDev/Jellyfin-Addons.git
 git push -u origin main
@@ -146,11 +147,11 @@ git push -u origin main
 Vor dem Tag die Version in `Jellyfin.Plugin.MovieCode/Jellyfin.Plugin.MovieCode.csproj` und `build.yaml` erhöhen, dann:
 
 ```powershell
-git tag v1.0.2.2
-git push origin v1.0.2.2
+git tag v1.0.3.0
+git push origin v1.0.3.0
 ```
 
-Der Workflow `.github/workflows/release.yml` baut und testet das Plugin, erzeugt `MovieCode_1.0.2.2.zip` sowie `manifest.json` und veröffentlicht beides als GitHub-Release.
+Der Workflow `.github/workflows/release.yml` baut und testet das Plugin, erzeugt `MovieCode_1.0.3.0.zip` sowie `manifest.json` und veröffentlicht beides als GitHub-Release.
 
 ### 3. Repository in Jellyfin hinzufügen
 
@@ -169,7 +170,7 @@ Die URL zeigt immer auf das neueste Release, sodass weitere Versionen automatisc
 ### Hinweise
 
 - Der Workflow benötigt keine zusätzlichen Secrets; das mitgelieferte `GITHUB_TOKEN` besitzt durch `permissions: contents: write` die nötigen Rechte.
-- Der Tag muss mit der Plugin-Version übereinstimmen (z. B. `v1.0.2.2`).
+- Der Tag muss mit der Plugin-Version übereinstimmen (z. B. `v1.0.3.0`).
 - Releases dürfen nicht als Pre-Release markiert werden, sonst zeigt `releases/latest` nicht darauf.
 - Alternativ kann `manifest.json` auch über GitHub Pages bereitgestellt werden; die Release-Variante funktioniert jedoch ohne zusätzliche Einrichtung.
 
@@ -184,7 +185,7 @@ dotnet build Jellyfin.Plugin.MovieCode.slnx -c Release
 # Tests
 dotnet test Jellyfin.Plugin.MovieCode.slnx -c Release
 
-# Paket erzeugen (dist/MovieCode_1.0.2.2.zip)
+# Paket erzeugen (dist/MovieCode_1.0.3.0.zip)
 .\build.ps1
 ```
 
@@ -226,4 +227,4 @@ Beide Dateien werden atomar geschrieben und überstehen Neustarts. Der Schlüsse
 - Unit-Tests: 10er-Code-Pakete, Einmaligkeit, Film-Bindung, nur ein aktiver Film, Restcodes nach Filmende, Paket-Aufhebung, Ablauf, Hashing, Rate-Limit, Persistenz
 - Integrationstest: Anmeldung, Bibliotheksscan, Code-Paket erzeugen, Code einlösen, erlaubte und blockierte Wiedergabe, Abschluss nach Filmende, nächster Code, Aufheben der Freigabe, Persistenz über Neustart
 - Browsertest (Edge/Playwright): Popup beim Play, Code-Eingabe, Fehlercode, Abbrechen, Sperr-Dialog bei anderem Film, tatsächlicher Videostart nach Freigabe
-- Browsertest (Edge/Playwright): Code-Verwaltung in **Benutzer → Kindersicherung**, 10er-Paket erzeugen, Einmalanzeige, Kopieren, TXT-Download, Paketübersicht und Aufheben
+- Browsertest (Edge/Playwright): Code-Verwaltung in **Benutzer → Kindersicherung**, 10er-Paket erzeugen, offene Codes erneut anzeigen, Kopieren, TXT-Download, Paketübersicht und Aufheben

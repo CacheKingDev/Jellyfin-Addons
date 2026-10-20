@@ -216,6 +216,7 @@
             '#movieCodeUserPanel .mcAdminCodeRows{display:flex;flex-direction:column;gap:.2em;margin-top:.5em;}',
             '#movieCodeUserPanel .mcAdminCodeRow{display:flex;flex-wrap:wrap;align-items:center;gap:.6em;font-size:.9em;}',
             '#movieCodeUserPanel .mcAdminCodeLabel{min-width:5.5em;font-weight:600;}',
+            '#movieCodeUserPanel .mcAdminCodeValue{font-family:Consolas,"Courier New",monospace;font-size:1.05em;letter-spacing:.08em;}',
             '#movieCodeUserPanel .mcAdminStatus{display:inline-block;padding:.1em .55em;border-radius:999px;font-size:.82em;line-height:1.5;border:1px solid currentColor;}',
             '#movieCodeUserPanel .mcAdminStatus.isPending{color:#d39e00;background:rgba(255,193,7,.14);}',
             '#movieCodeUserPanel .mcAdminStatus.isActive{color:#2ecc71;background:rgba(46,204,113,.14);}',
@@ -399,7 +400,7 @@
         panel.appendChild(header);
 
         panel.appendChild(create('p', 'fieldDescription',
-            'Jeder Code gilt genau einmal für einen Film. Ein neues Paket ersetzt alle noch offenen Codes dieses Benutzers. Die Liste wird nur direkt nach dem Erzeugen angezeigt.'));
+            'Jeder Code gilt genau einmal für einen Film. Ein neues Paket ersetzt alle noch offenen Codes dieses Benutzers. Noch nicht verwendete Codes bleiben hier sichtbar; verwendete Codes werden ausgeblendet.'));
 
         var createButton = create('button', 'emby-button raised');
         createButton.type = 'button';
@@ -525,7 +526,7 @@
         box.appendChild(actions);
 
         box.appendChild(create('div', 'fieldDescription',
-            'Bewahre die Liste sicher auf. Sie kann später nicht erneut angezeigt werden.'));
+            'Die noch offenen Codes bleiben im Paket unten sichtbar. Verwendete Codes werden ausgeblendet.'));
         box.style.display = '';
     }
 
@@ -601,6 +602,35 @@
         window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
     }
 
+    function buildBatchCodeText(batch, openCodes) {
+        var lines = [
+            'Movie Code – Offene Einmalcodes für ' + batch.userName,
+            'Erstellt: ' + formatDate(batch.createdUtc),
+            'Jeder Code gilt genau einmal für einen Film.',
+            ''
+        ];
+
+        openCodes.forEach(function (code) {
+            lines.push('Code ' + code.batchIndex + ': ' + formatCode(code.code));
+        });
+
+        return lines.join('\r\n');
+    }
+
+    function downloadBatchCodes(batch, openCodes) {
+        var user = batch.userName || 'Benutzer';
+        var safeUser = user.replace(/[^a-z0-9_-]/gi, '_');
+        var blob = new Blob([buildBatchCodeText(batch, openCodes)], { type: 'text/plain;charset=utf-8' });
+        var url = URL.createObjectURL(blob);
+        var link = document.createElement('a');
+        link.href = url;
+        link.download = 'MovieCode_' + safeUser + '_offen_' + new Date().toISOString().slice(0, 10) + '.txt';
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        window.setTimeout(function () { URL.revokeObjectURL(url); }, 1000);
+    }
+
     function loadGrants(user) {
         apiGet('MovieCode/Admin/Grants').then(function (grants) {
             if (!currentUser || currentUser.Id !== user.Id) {
@@ -657,25 +687,56 @@
                 block.appendChild(activeLine);
             }
 
-            var details = create('details');
-            details.style.marginTop = '0.5em';
-            details.appendChild(create('summary', 'fieldDescription', 'Codes anzeigen'));
-
-            var codeList = create('div', 'mcAdminCodeRows');
-            batch.codes.forEach(function (code) {
-                var row = create('div', 'mcAdminCodeRow');
-                row.appendChild(create('span', 'mcAdminCodeLabel', 'Code ' + code.batchIndex));
-
-                var label = statusLabel(code.status);
-                if (code.status === 'Active' && code.itemName) {
-                    label += ' – ' + code.itemName;
-                }
-
-                row.appendChild(create('span', 'mcAdminStatus ' + statusClass(code.status), label));
-                codeList.appendChild(row);
+            var openCodes = batch.codes.filter(function (code) {
+                return code.status === 'Pending' && code.code;
             });
-            details.appendChild(codeList);
-            block.appendChild(details);
+            var pendingWithoutCode = batch.codes.filter(function (code) {
+                return code.status === 'Pending' && !code.code;
+            });
+
+            if (openCodes.length) {
+                var details = create('details');
+                details.style.marginTop = '0.5em';
+                details.appendChild(create('summary', 'fieldDescription',
+                    'Offene Codes anzeigen (' + openCodes.length + ')'));
+
+                var codeList = create('div', 'mcAdminCodeRows');
+                openCodes.forEach(function (code) {
+                    var row = create('div', 'mcAdminCodeRow');
+                    row.appendChild(create('span', 'mcAdminCodeLabel', 'Code ' + code.batchIndex));
+                    row.appendChild(create('span', 'mcAdminCodeValue', formatCode(code.code)));
+                    codeList.appendChild(row);
+                });
+                details.appendChild(codeList);
+
+                var codeActions = create('div', 'mcAdminActions');
+                var copyCodes = create('button', 'emby-button raised');
+                copyCodes.type = 'button';
+                copyCodes.appendChild(create('span', '', 'Offene Codes kopieren'));
+                copyCodes.addEventListener('click', function () {
+                    copyText(buildBatchCodeText(batch, openCodes), 'Offene Codes kopiert.');
+                });
+
+                var downloadOpenCodes = create('button', 'emby-button raised');
+                downloadOpenCodes.type = 'button';
+                downloadOpenCodes.appendChild(create('span', '', 'Offene Codes als TXT'));
+                downloadOpenCodes.addEventListener('click', function () {
+                    downloadBatchCodes(batch, openCodes);
+                });
+
+                codeActions.appendChild(copyCodes);
+                codeActions.appendChild(downloadOpenCodes);
+                details.appendChild(codeActions);
+                block.appendChild(details);
+            } else if (!pendingWithoutCode.length) {
+                block.appendChild(create('div', 'fieldDescription',
+                    'Keine unbenutzten Codes mehr.'));
+            }
+
+            if (pendingWithoutCode.length) {
+                block.appendChild(create('div', 'fieldDescription',
+                    'Für ' + pendingWithoutCode.length + ' noch offene Codes ist kein Klartext gespeichert (vor dieser Version erzeugt). Erzeuge ein neues Paket, um die Codes wieder anzuzeigen.'));
+            }
 
             var revoke = create('button', 'emby-button raised');
             revoke.type = 'button';

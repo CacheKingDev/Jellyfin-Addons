@@ -30,7 +30,8 @@ public sealed record CreateGrantRequest(
     [property: JsonPropertyName("userId")] Guid UserId);
 
 /// <summary>
-/// Antwort nach dem Erzeugen eines Code-Pakets. Die Codes werden nur hier einmalig zurückgegeben.
+/// Antwort nach dem Erzeugen eines Code-Pakets. Die Codes werden zusätzlich
+/// für die spätere Anzeige gespeichert, bis sie verwendet werden.
 /// </summary>
 /// <param name="BatchId">ID des Code-Pakets.</param>
 /// <param name="Codes">Die erzeugten 6-stelligen Einmalcodes.</param>
@@ -50,6 +51,7 @@ public sealed record CreateGrantResponse(
 /// <param name="Id">ID des Codes.</param>
 /// <param name="BatchId">ID des Code-Pakets.</param>
 /// <param name="BatchIndex">Position im Paket (1-basiert).</param>
+/// <param name="Code">Klartext-Code, solange er noch offen ist; sonst leer.</param>
 /// <param name="UserId">Benutzer-ID.</param>
 /// <param name="UserName">Benutzername.</param>
 /// <param name="ItemId">Gebundener Film, falls vorhanden.</param>
@@ -63,6 +65,7 @@ public sealed record GrantDto(
     [property: JsonPropertyName("id")] Guid Id,
     [property: JsonPropertyName("batchId")] Guid BatchId,
     [property: JsonPropertyName("batchIndex")] int BatchIndex,
+    [property: JsonPropertyName("code")] string Code,
     [property: JsonPropertyName("userId")] Guid UserId,
     [property: JsonPropertyName("userName")] string UserName,
     [property: JsonPropertyName("itemId")] Guid? ItemId,

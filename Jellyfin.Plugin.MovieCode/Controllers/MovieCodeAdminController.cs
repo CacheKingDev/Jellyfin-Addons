@@ -45,6 +45,7 @@ public sealed class MovieCodeAdminController : ControllerBase
                 grant.Id,
                 grant.BatchId,
                 grant.BatchIndex,
+                grant.Code,
                 grant.UserId,
                 grant.UserName,
                 grant.ItemId,
@@ -61,11 +62,11 @@ public sealed class MovieCodeAdminController : ControllerBase
 
     /// <summary>
     /// Erzeugt ein neues Paket aus 10 Einmalcodes für einen Benutzer. Der Film wird
-    /// erst beim Start der Wiedergabe festgelegt. Die Klartext-Codes werden nur in
-    /// dieser Antwort einmalig zurückgegeben.
+    /// erst beim Start der Wiedergabe festgelegt. Die Klartext-Codes werden für
+    /// noch offene Codes gespeichert und können erneut angezeigt werden.
     /// </summary>
     /// <param name="request">Der ausgewählte Benutzer.</param>
-    /// <returns>Die Liste der Einmalcodes; wird nur einmal angezeigt.</returns>
+    /// <returns>Die Liste der Einmalcodes.</returns>
     [HttpPost("Grants")]
     [Produces("application/json")]
     public ActionResult<CreateGrantResponse> CreateGrant([FromBody] CreateGrantRequest request)

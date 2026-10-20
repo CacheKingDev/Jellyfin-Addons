@@ -43,6 +43,12 @@ public sealed class MovieGrant
     public string ItemName { get; set; } = string.Empty;
 
     /// <summary>
+    /// Gets or sets der Klartext-Code, solange er noch nicht verwendet wurde.
+    /// Wird nach Einlösung, Ablauf oder Abschluss geleert.
+    /// </summary>
+    public string Code { get; set; } = string.Empty;
+
+    /// <summary>
     /// Gets or sets der PBKDF2-Hash des Einmalcodes.
     /// </summary>
     public string CodeHash { get; set; } = string.Empty;
