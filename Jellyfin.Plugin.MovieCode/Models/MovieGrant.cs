@@ -12,6 +12,16 @@ public sealed class MovieGrant
     public Guid Id { get; set; }
 
     /// <summary>
+    /// Gets or sets die ID des Code-Pakets, zu dem dieser Code gehört.
+    /// </summary>
+    public Guid BatchId { get; set; }
+
+    /// <summary>
+    /// Gets or sets die Position des Codes innerhalb des Pakets (1-basiert).
+    /// </summary>
+    public int BatchIndex { get; set; }
+
+    /// <summary>
     /// Gets or sets die Jellyfin-Benutzer-ID.
     /// </summary>
     public Guid UserId { get; set; }
@@ -36,6 +46,11 @@ public sealed class MovieGrant
     /// Gets or sets der PBKDF2-Hash des Einmalcodes.
     /// </summary>
     public string CodeHash { get; set; } = string.Empty;
+
+    /// <summary>
+    /// Gets or sets der HMAC-Lookup-Hash des Einmalcodes.
+    /// </summary>
+    public string LookupHash { get; set; } = string.Empty;
 
     /// <summary>
     /// Gets or sets das Salt des PBKDF2-Hashes.

@@ -7,13 +7,14 @@ using Microsoft.Extensions.Logging;
 namespace Jellyfin.Plugin.MovieCode.Services;
 
 /// <summary>
-/// Bindet das Popup-Skript zur Laufzeit in die index.html des Jellyfin-Web-Clients ein.
+/// Bindet die Web-Client-Skripte zur Laufzeit in die index.html des Jellyfin-Web-Clients ein.
 /// Jellyfin 12 bietet dafür keinen offiziellen Plugin-Hook; die Middleware läuft daher
 /// vor der statischen Dateiauslieferung und verändert nur die ausgelieferte Antwort.
 /// </summary>
 public sealed class ClientScriptInjectionStartupFilter : IStartupFilter
 {
-    private const string ScriptPath = "/MovieCode/client.js";
+    private const string ClientScriptPath = "/MovieCode/client.js";
+    private const string AdminScriptPath = "/MovieCode/admin.js";
 
     private readonly ILogger<ClientScriptInjectionStartupFilter> _logger;
     private int _logged;
@@ -40,8 +41,7 @@ public sealed class ClientScriptInjectionStartupFilter : IStartupFilter
     private async Task InvokeAsync(HttpContext context, Func<Task> next)
     {
         if (!IsIndexRequest(context.Request.Path.Value)
-            || !HttpMethods.IsGet(context.Request.Method)
-            || !(MovieCodePlugin.Instance?.Configuration.EnableWebPopup ?? false))
+            || !HttpMethods.IsGet(context.Request.Method))
         {
             await next().ConfigureAwait(false);
             return;
@@ -87,7 +87,7 @@ public sealed class ClientScriptInjectionStartupFilter : IStartupFilter
 
         try
         {
-            html = InjectScript(context, html);
+            html = InjectScripts(context, html);
         }
         catch (Exception ex)
         {
@@ -104,25 +104,36 @@ public sealed class ClientScriptInjectionStartupFilter : IStartupFilter
         await originalBody.WriteAsync(bytes, 0, bytes.Length).ConfigureAwait(false);
     }
 
-    private string InjectScript(HttpContext context, string html)
+    private string InjectScripts(HttpContext context, string html)
     {
-        if (html.IndexOf(ScriptPath, StringComparison.OrdinalIgnoreCase) >= 0)
+        var pathBase = context.Request.PathBase.HasValue ? context.Request.PathBase.Value : string.Empty;
+        var version = typeof(MovieCodePlugin).Assembly.GetName().Version?.ToString() ?? "1";
+        var tags = new StringBuilder();
+
+        var popupEnabled = MovieCodePlugin.Instance?.Configuration.EnableWebPopup ?? false;
+        if (popupEnabled && html.IndexOf(ClientScriptPath, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            tags.Append($"<script src=\"{pathBase}{ClientScriptPath}?v={version}\"></script>\n");
+        }
+
+        if (html.IndexOf(AdminScriptPath, StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            tags.Append($"<script src=\"{pathBase}{AdminScriptPath}?v={version}\"></script>\n");
+        }
+
+        if (tags.Length == 0)
         {
             return html;
         }
 
-        var pathBase = context.Request.PathBase.HasValue ? context.Request.PathBase.Value : string.Empty;
-        var version = typeof(MovieCodePlugin).Assembly.GetName().Version?.ToString() ?? "1";
-        var tag = $"<script src=\"{pathBase}{ScriptPath}?v={version}\"></script>";
-
         var bodyClose = html.LastIndexOf("</body>", StringComparison.OrdinalIgnoreCase);
         html = bodyClose >= 0
-            ? html.Insert(bodyClose, tag + "\n")
-            : html + "\n" + tag;
+            ? html.Insert(bodyClose, tags.ToString())
+            : html + "\n" + tags;
 
         if (Interlocked.Exchange(ref _logged, 1) == 0)
         {
-            _logger.LogInformation("Movie Code: Popup-Skript wurde in den Web-Client eingebunden.");
+            _logger.LogInformation("Movie Code: Web-Client-Skripte wurden in den Web-Client eingebunden.");
         }
 
         return html;

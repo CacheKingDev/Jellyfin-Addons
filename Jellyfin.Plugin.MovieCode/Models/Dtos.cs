@@ -30,35 +30,39 @@ public sealed record CreateGrantRequest(
     [property: JsonPropertyName("userId")] Guid UserId);
 
 /// <summary>
-/// Antwort nach dem Erzeugen einer Freigabe. Der Code wird nur hier einmalig zurückgegeben.
+/// Antwort nach dem Erzeugen eines Code-Pakets. Die Codes werden nur hier einmalig zurückgegeben.
 /// </summary>
-/// <param name="Id">ID der Freigabe.</param>
-/// <param name="Code">Der erzeugte 6-stellige Code.</param>
+/// <param name="BatchId">ID des Code-Pakets.</param>
+/// <param name="Codes">Die erzeugten 6-stelligen Einmalcodes.</param>
 /// <param name="UserName">Benutzername.</param>
-/// <param name="ExpiresUtc">Ablaufzeitpunkt des Codes.</param>
+/// <param name="ExpiresUtc">Ablaufzeitpunkt der Codes.</param>
 /// <param name="UnlockUrl">Adresse der Freigabeseite.</param>
 public sealed record CreateGrantResponse(
-    [property: JsonPropertyName("id")] Guid Id,
-    [property: JsonPropertyName("code")] string Code,
+    [property: JsonPropertyName("batchId")] Guid BatchId,
+    [property: JsonPropertyName("codes")] IReadOnlyList<string> Codes,
     [property: JsonPropertyName("userName")] string UserName,
     [property: JsonPropertyName("expiresUtc")] DateTimeOffset? ExpiresUtc,
     [property: JsonPropertyName("unlockUrl")] string UnlockUrl);
 
 /// <summary>
-/// Freigabe für die Admin-Oberfläche.
+/// Einzelner Code eines Pakets für die Admin-Oberfläche.
 /// </summary>
-/// <param name="Id">ID der Freigabe.</param>
+/// <param name="Id">ID des Codes.</param>
+/// <param name="BatchId">ID des Code-Pakets.</param>
+/// <param name="BatchIndex">Position im Paket (1-basiert).</param>
 /// <param name="UserId">Benutzer-ID.</param>
 /// <param name="UserName">Benutzername.</param>
 /// <param name="ItemId">Gebundener Film, falls vorhanden.</param>
 /// <param name="ItemName">Titel des gebundenen Films.</param>
-/// <param name="Status">Status der Freigabe.</param>
+/// <param name="Status">Status des Codes.</param>
 /// <param name="CreatedUtc">Erstellungszeitpunkt.</param>
 /// <param name="UnlockedUtc">Zeitpunkt der Code-Eingabe.</param>
 /// <param name="ExpiresUtc">Ablaufzeitpunkt.</param>
 /// <param name="CompletedUtc">Zeitpunkt des Filmendes.</param>
 public sealed record GrantDto(
     [property: JsonPropertyName("id")] Guid Id,
+    [property: JsonPropertyName("batchId")] Guid BatchId,
+    [property: JsonPropertyName("batchIndex")] int BatchIndex,
     [property: JsonPropertyName("userId")] Guid UserId,
     [property: JsonPropertyName("userName")] string UserName,
     [property: JsonPropertyName("itemId")] Guid? ItemId,
@@ -106,7 +110,12 @@ public enum UnlockStatus
     /// <summary>
     /// Der Code wurde bereits eingelöst.
     /// </summary>
-    AlreadyUsed = 2
+    AlreadyUsed = 2,
+
+    /// <summary>
+    /// Für den Benutzer ist bereits ein anderer Film freigegeben.
+    /// </summary>
+    AlreadyActive = 3
 }
 
 /// <summary>
@@ -128,6 +137,13 @@ public sealed record UnlockResult(UnlockStatus Status, MovieGrant? Grant)
     /// <param name="grant">Betroffene Freigabe.</param>
     /// <returns>Ergebnis.</returns>
     public static UnlockResult AlreadyUsed(MovieGrant grant) => new(UnlockStatus.AlreadyUsed, grant);
+
+    /// <summary>
+    /// Erstellt ein Ergebnis für eine bereits laufende Freigabe.
+    /// </summary>
+    /// <param name="grant">Die bereits aktive Freigabe.</param>
+    /// <returns>Ergebnis.</returns>
+    public static UnlockResult AlreadyActive(MovieGrant grant) => new(UnlockStatus.AlreadyActive, grant);
 
     /// <summary>
     /// Erstellt ein Erfolgsergebnis.

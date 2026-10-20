@@ -246,10 +246,10 @@ public sealed class PlaybackGuard : IHostedService, IDisposable
                 message.Append(" Für dich ist nur \"").Append(grant.ItemName).Append("\" freigegeben.");
                 break;
             case GrantStatus.Completed:
-                message.Append(" Die Freigabe für \"").Append(grant.ItemName).Append("\" wurde bereits verbraucht.");
+                message.Append(" Es sind keine gültigen Einmalcodes mehr vorhanden.");
                 break;
             case GrantStatus.Expired:
-                message.Append(" Die Freigabe für \"").Append(grant.ItemName).Append("\" ist abgelaufen.");
+                message.Append(" Die Einmalcodes sind abgelaufen.");
                 break;
         }
 

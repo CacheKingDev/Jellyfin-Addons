@@ -13,7 +13,7 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     public string UnlockPageUrl { get; set; } = string.Empty;
 
     /// <summary>
-    /// Gets or sets die Gültigkeit eines Codes in Stunden. 0 = unbegrenzt, bis der Film endet.
+    /// Gets or sets die Gültigkeit der Einmalcodes in Stunden. 0 = unbegrenzt, bis die Codes verwendet oder aufgehoben werden.
     /// </summary>
     public int CodeValidityHours { get; set; } = 24;
 
@@ -28,7 +28,8 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     public bool ExpireOnEarlyStop { get; set; }
 
     /// <summary>
-    /// Gets or sets a value indicating whether der Benutzer nach dem Filmende automatisch wieder alles sehen darf.
+    /// Gets or sets a value indicating whether der Benutzer nach dem Filmende automatisch entsperrt wird.
+    /// Dabei werden alle übrigen Codes des Pakets ungültig.
     /// </summary>
     public bool ReleaseAfterCompletion { get; set; }
 
@@ -50,5 +51,5 @@ public sealed class PluginConfiguration : BasePluginConfiguration
     /// <summary>
     /// Gets or sets den Text der Sperrmeldung.
     /// </summary>
-    public string LockedMessageText { get; set; } = "Bitte gib zuerst deinen 6-stelligen Freigabecode auf der Freigabeseite ein.";
+    public string LockedMessageText { get; set; } = "Bitte gib zuerst einen deiner 6-stelligen Einmalcodes auf der Freigabeseite ein.";
 }

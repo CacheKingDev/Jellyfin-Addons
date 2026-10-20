@@ -36,7 +36,7 @@ public sealed class MovieCodePlugin : BasePlugin<PluginConfiguration>, IHasWebPa
 
     /// <inheritdoc />
     public override string Description
-        => "Erlaubt einem ausgewählten Benutzer die Wiedergabe genau eines Films, nachdem er einen 6-stelligen Einmalcode eingegeben hat.";
+        => "Erzeugt 10 Einmalcodes pro Benutzer. Jeder Code gibt genau einen Film frei; nach dem Filmende kann der nächste Code verwendet werden.";
 
     /// <inheritdoc />
     public IEnumerable<PluginPageInfo> GetPages()

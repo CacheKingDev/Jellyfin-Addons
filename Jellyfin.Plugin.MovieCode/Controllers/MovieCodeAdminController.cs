@@ -15,6 +15,8 @@ namespace Jellyfin.Plugin.MovieCode.Controllers;
 [Authorize(Policy = "RequiresElevation")]
 public sealed class MovieCodeAdminController : ControllerBase
 {
+    private const int CodesPerBatch = 10;
+
     private readonly GrantStore _grantStore;
     private readonly IUserManager _userManager;
 
@@ -41,6 +43,8 @@ public sealed class MovieCodeAdminController : ControllerBase
             .GetAll()
             .Select(grant => new GrantDto(
                 grant.Id,
+                grant.BatchId,
+                grant.BatchIndex,
                 grant.UserId,
                 grant.UserName,
                 grant.ItemId,
@@ -56,11 +60,12 @@ public sealed class MovieCodeAdminController : ControllerBase
     }
 
     /// <summary>
-    /// Erzeugt einen neuen Einmalcode für einen Benutzer. Der Film wird erst beim
-    /// Start der Wiedergabe festgelegt.
+    /// Erzeugt ein neues Paket aus 10 Einmalcodes für einen Benutzer. Der Film wird
+    /// erst beim Start der Wiedergabe festgelegt. Die Klartext-Codes werden nur in
+    /// dieser Antwort einmalig zurückgegeben.
     /// </summary>
     /// <param name="request">Der ausgewählte Benutzer.</param>
-    /// <returns>Der Code wird nur in dieser Antwort einmalig zurückgegeben.</returns>
+    /// <returns>Die Liste der Einmalcodes; wird nur einmal angezeigt.</returns>
     [HttpPost("Grants")]
     [Produces("application/json")]
     public ActionResult<CreateGrantResponse> CreateGrant([FromBody] CreateGrantRequest request)
@@ -72,28 +77,39 @@ public sealed class MovieCodeAdminController : ControllerBase
         }
 
         var configuration = GetConfiguration();
-        var (grant, code) = _grantStore.Create(
+        var batch = _grantStore.CreateBatch(
             user.Id,
             user.Username,
+            CodesPerBatch,
             configuration.CodeValidityHours);
 
+        var firstGrant = batch.Grants[0];
         var unlockUrl = GetUnlockUrl(configuration);
         return Ok(new CreateGrantResponse(
-            grant.Id,
-            code,
+            batch.BatchId,
+            batch.Codes,
             user.Username,
-            grant.ExpiresUtc,
+            firstGrant.ExpiresUtc,
             unlockUrl));
     }
 
     /// <summary>
-    /// Hebt eine Freigabe auf. Danach ist der Benutzer wieder uneingeschränkt.
+    /// Hebt eine einzelne Freigabe auf.
     /// </summary>
     /// <param name="id">ID der Freigabe.</param>
     /// <returns>204, wenn die Freigabe entfernt wurde.</returns>
     [HttpPost("Grants/{id:guid}/Revoke")]
     public IActionResult RevokeGrant(Guid id)
         => _grantStore.Remove(id) ? NoContent() : NotFound();
+
+    /// <summary>
+    /// Hebt ein gesamtes Code-Paket auf. Alle noch offenen Codes werden ungültig.
+    /// </summary>
+    /// <param name="batchId">ID des Code-Pakets.</param>
+    /// <returns>204, wenn das Paket entfernt wurde.</returns>
+    [HttpPost("Grants/Batch/{batchId:guid}/Revoke")]
+    public IActionResult RevokeBatch(Guid batchId)
+        => _grantStore.RemoveBatch(batchId) ? NoContent() : NotFound();
 
     private static PluginConfiguration GetConfiguration()
         => MovieCodePlugin.Instance?.Configuration ?? new PluginConfiguration();

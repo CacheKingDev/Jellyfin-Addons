@@ -17,8 +17,8 @@ env:
   PLUGIN_GUID: "6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64"
   PLUGIN_NAME: "Movie Code"
   TARGET_ABI: "12.1.0.0"
-  PLUGIN_DESCRIPTION: "Erlaubt einem ausgewählten Benutzer die Wiedergabe eines Films, nachdem er beim Start einen 6-stelligen Einmalcode eingegeben hat."
-  PLUGIN_OVERVIEW: "Code-Popup beim Filmstart: Ein Einmalcode gibt genau einen Film für einen Benutzer frei."
+  PLUGIN_DESCRIPTION: "Erzeugt in der Kindersicherung eines Benutzers 10 Einmalcodes. Jeder Code gibt genau einen Film frei; nach dem Filmende kann der nächste Code verwendet werden."
+  PLUGIN_OVERVIEW: "Code-Popup beim Filmstart: 10 Einmalcodes pro Benutzer, jeder gibt genau einen Film frei."
 
 jobs:
   release:

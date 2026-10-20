@@ -159,14 +159,14 @@
             var text = createElement(
                 'div',
                 'mc-text',
-                'Gib den 6-stelligen Code ein, um „' + (status.itemName || 'diesen Film') + '“ zu starten.');
+                'Gib einen deiner 6-stelligen Einmalcodes ein, um „' + (status.itemName || 'diesen Film') + '“ zu starten.');
 
             var input = createElement('input', 'mc-input');
             input.type = 'text';
             input.inputMode = 'numeric';
             input.autocomplete = 'one-time-code';
             input.maxLength = 6;
-            input.setAttribute('aria-label', '6-stelliger Freigabecode');
+            input.setAttribute('aria-label', '6-stelliger Einmalcode');
 
             var error = createElement('div', 'mc-error');
             var actions = createElement('div', 'mc-actions');

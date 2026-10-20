@@ -20,9 +20,11 @@ public sealed class MovieCodeController : ControllerBase
 {
     private const string UnlockPageResource = "Jellyfin.Plugin.MovieCode.Web.unlock.html";
     private const string ClientScriptResource = "Jellyfin.Plugin.MovieCode.Web.client.js";
+    private const string AdminScriptResource = "Jellyfin.Plugin.MovieCode.Web.admin.js";
 
     private static readonly Lazy<string> UnlockPage = new(LoadUnlockPage);
     private static readonly Lazy<string> ClientScript = new(LoadClientScript);
+    private static readonly Lazy<string> AdminScript = new(LoadAdminScript);
 
     private readonly GrantStore _grantStore;
     private readonly UnlockRateLimiter _rateLimiter;
@@ -84,6 +86,20 @@ public sealed class MovieCodeController : ControllerBase
     }
 
     /// <summary>
+    /// Liefert das JavaScript, das die Code-Verwaltung in der Benutzer-Kindersicherung einblendet.
+    /// </summary>
+    /// <returns>JavaScript-Datei.</returns>
+    [HttpGet("admin.js")]
+    [AllowAnonymous]
+    [Produces("application/javascript")]
+    public IActionResult GetAdminScript()
+    {
+        Response.Headers.CacheControl = "public, max-age=300";
+        Response.Headers["X-Content-Type-Options"] = "nosniff";
+        return Content(AdminScript.Value, "application/javascript; charset=utf-8");
+    }
+
+    /// <summary>
     /// Liefert den Freigabestatus des angemeldeten Benutzers für einen Film.
     /// </summary>
     /// <param name="itemId">Der Film, der gestartet werden soll.</param>
@@ -113,55 +129,77 @@ public sealed class MovieCodeController : ControllerBase
             return Ok(Unrestricted());
         }
 
-        var grant = _grantStore.GetForUser(userId);
-        if (grant is null)
+        var grants = _grantStore.GetAllForUser(userId);
+        if (grants.Count == 0)
         {
             return Ok(Unrestricted());
         }
 
-        var requestedItemName = item?.Name ?? grant.ItemName;
-        var status = grant.Status.ToString();
-
-        return grant.Status switch
+        var active = grants.FirstOrDefault(grant => grant.Status == GrantStatus.Active);
+        if (active is not null)
         {
-            GrantStatus.Pending => Ok(new GrantStatusDto(
+            if (active.ItemId is null || !itemId.HasValue || active.ItemId == itemId)
+            {
+                return Ok(new GrantStatusDto(
+                    true,
+                    true,
+                    false,
+                    active.Status.ToString(),
+                    active.ItemId,
+                    active.ItemName,
+                    null));
+            }
+
+            return Ok(new GrantStatusDto(
+                true,
+                false,
+                false,
+                active.Status.ToString(),
+                active.ItemId,
+                active.ItemName,
+                $"Für dich ist nur \"{active.ItemName}\" freigegeben."));
+        }
+
+        var pending = grants
+            .Where(grant => grant.Status == GrantStatus.Pending)
+            .OrderBy(grant => grant.BatchIndex)
+            .FirstOrDefault();
+        if (pending is not null)
+        {
+            var requestedItemName = item?.Name ?? "diesen Film";
+            return Ok(new GrantStatusDto(
                 true,
                 false,
                 true,
-                status,
-                grant.ItemId,
+                pending.Status.ToString(),
+                null,
                 requestedItemName,
-                "Bitte gib den 6-stelligen Freigabecode ein.")),
+                "Bitte gib einen deiner 6-stelligen Einmalcodes ein."));
+        }
 
-            GrantStatus.Active when grant.ItemId is null || !itemId.HasValue || grant.ItemId == itemId
-                => Ok(new GrantStatusDto(true, true, false, status, grant.ItemId, grant.ItemName, null)),
+        var latest = grants
+            .OrderByDescending(grant => grant.CreatedUtc)
+            .First();
 
-            GrantStatus.Active => Ok(new GrantStatusDto(
-                true,
-                false,
-                false,
-                status,
-                grant.ItemId,
-                grant.ItemName,
-                $"Für dich ist nur \"{grant.ItemName}\" freigegeben.")),
-
+        return latest.Status switch
+        {
             GrantStatus.Completed => Ok(new GrantStatusDto(
                 true,
                 false,
                 false,
-                status,
-                grant.ItemId,
-                grant.ItemName,
-                $"Die Freigabe für \"{grant.ItemName}\" wurde bereits verbraucht.")),
+                latest.Status.ToString(),
+                latest.ItemId,
+                latest.ItemName,
+                "Es sind keine gültigen Einmalcodes mehr vorhanden. Bitte wende dich an den Administrator.")),
 
             _ => Ok(new GrantStatusDto(
                 true,
                 false,
                 false,
-                status,
-                grant.ItemId,
-                grant.ItemName,
-                "Der Freigabecode ist abgelaufen."))
+                latest.Status.ToString(),
+                latest.ItemId,
+                latest.ItemName,
+                "Die Einmalcodes sind abgelaufen. Bitte wende dich an den Administrator."))
         };
     }
 
@@ -228,6 +266,16 @@ public sealed class MovieCodeController : ControllerBase
             case UnlockStatus.AlreadyUsed:
                 return Ok(new UnlockResponse(false, "Dieser Code wurde bereits verwendet."));
 
+            case UnlockStatus.AlreadyActive:
+            {
+                var activeName = result.Grant?.ItemName;
+                return Ok(new UnlockResponse(
+                    false,
+                    string.IsNullOrWhiteSpace(activeName)
+                        ? "Es ist bereits ein Film freigegeben. Schließe zuerst diesen Film ab."
+                        : $"Es ist bereits \"{activeName}\" freigegeben. Schließe zuerst diesen Film ab."));
+            }
+
             default:
                 return Ok(new UnlockResponse(false, "Der Code ist ungültig oder abgelaufen."));
         }
@@ -242,6 +290,8 @@ public sealed class MovieCodeController : ControllerBase
     private static string LoadUnlockPage() => LoadResource(UnlockPageResource);
 
     private static string LoadClientScript() => LoadResource(ClientScriptResource);
+
+    private static string LoadAdminScript() => LoadResource(AdminScriptResource);
 
     private static string LoadResource(string resourceName)
     {

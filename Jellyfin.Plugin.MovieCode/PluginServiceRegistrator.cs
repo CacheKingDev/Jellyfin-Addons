@@ -19,12 +19,24 @@ public sealed class PluginServiceRegistrator : IPluginServiceRegistrator
         serviceCollection.AddSingleton(serviceProvider =>
         {
             var applicationPaths = serviceProvider.GetRequiredService<IApplicationPaths>();
+            var logger = serviceProvider.GetRequiredService<ILogger<CodeLookupKeyProvider>>();
+            var keyPath = Path.Combine(
+                applicationPaths.PluginConfigurationsPath,
+                "Jellyfin.Plugin.MovieCode.lookup.key");
+
+            return new CodeLookupKeyProvider(keyPath, logger);
+        });
+
+        serviceCollection.AddSingleton(serviceProvider =>
+        {
+            var applicationPaths = serviceProvider.GetRequiredService<IApplicationPaths>();
             var logger = serviceProvider.GetRequiredService<ILogger<GrantStore>>();
+            var lookupKeyProvider = serviceProvider.GetRequiredService<CodeLookupKeyProvider>();
             var filePath = Path.Combine(
                 applicationPaths.PluginConfigurationsPath,
                 "Jellyfin.Plugin.MovieCode.grants.json");
 
-            return new GrantStore(filePath, TimeProvider.System, logger);
+            return new GrantStore(filePath, lookupKeyProvider, TimeProvider.System, logger);
         });
 
         serviceCollection.AddSingleton(new UnlockRateLimiter(TimeProvider.System));

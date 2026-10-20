@@ -1,14 +1,16 @@
 name: "Movie Code"
 guid: "6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64"
-version: "1.0.1.0"
+version: "1.0.2.0"
 targetAbi: "12.1.0.0"
 framework: "net10.0"
-overview: "Code-Popup beim Filmstart: Ein Einmalcode gibt genau einen Film für einen Benutzer frei."
+overview: "Code-Popup beim Filmstart: 10 Einmalcodes, jeder gibt genau einen Film für einen Benutzer frei."
 description: >-
-  Ein Administrator erzeugt für einen Benutzer einen 6-stelligen Einmalcode.
-  Der Benutzer durchsucht die Mediathek normal; beim Start eines Films fragt
-  ein Popup im Web-Client den Code ab. Danach ist genau dieser Film freigegeben.
-  Nach dem Filmende verfällt die Freigabe.
+  Ein Administrator erzeugt in der Kindersicherung eines Benutzers ein Paket
+  aus 10 Einmalcodes und zeigt die Liste einmalig an. Der Benutzer durchsucht
+  die Mediathek normal; beim Start eines Films fragt ein Popup im Web-Client
+  einen Code ab. Jeder Code gilt genau einmal für einen Film. Nach dem Filmende
+  kann der nächste Code aus dem Paket verwendet werden; es ist immer nur ein
+  Film gleichzeitig freigegeben.
 category: "General"
 owner: "ben"
 artifacts:

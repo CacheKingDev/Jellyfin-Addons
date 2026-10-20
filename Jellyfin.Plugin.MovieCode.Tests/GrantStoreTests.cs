@@ -8,28 +8,46 @@ public sealed class GrantStoreTests : IDisposable
 {
     private readonly string _directory;
     private readonly string _filePath;
+    private readonly string _keyPath;
     private readonly FakeTimeProvider _clock = new();
 
     public GrantStoreTests()
     {
         _directory = Path.Combine(Path.GetTempPath(), "moviecode-tests", Guid.NewGuid().ToString("N"));
         _filePath = Path.Combine(_directory, "grants.json");
+        _keyPath = Path.Combine(_directory, "lookup.key");
     }
 
     [Fact]
-    public void Create_ReturnsSixDigitCodeAndLeavesItemOpen()
+    public void CreateBatch_ReturnsTenUniqueCodesAndPendingGrants()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
 
-        var (grant, code) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        Assert.Equal(6, code.Length);
-        Assert.Equal(userId, grant.UserId);
-        Assert.Null(grant.ItemId);
-        Assert.Equal(GrantStatus.Pending, grant.Status);
+        Assert.Equal(10, batch.Codes.Count);
+        Assert.Equal(10, batch.Codes.Distinct(StringComparer.Ordinal).Count());
+        Assert.All(batch.Codes, code =>
+        {
+            Assert.Equal(6, code.Length);
+            Assert.True(code.All(char.IsDigit));
+        });
+
+        var grants = store.GetAllForUser(userId);
+        Assert.Equal(10, grants.Count);
+        Assert.All(grants, grant =>
+        {
+            Assert.Equal(batch.BatchId, grant.BatchId);
+            Assert.Equal(userId, grant.UserId);
+            Assert.Equal("Kind", grant.UserName);
+            Assert.Null(grant.ItemId);
+            Assert.Equal(GrantStatus.Pending, grant.Status);
+            Assert.NotNull(grant.ExpiresUtc);
+        });
+        Assert.Equal(Enumerable.Range(1, 10), grants.Select(grant => grant.BatchIndex));
         Assert.True(File.Exists(_filePath));
-        Assert.Single(store.GetAll());
+        Assert.True(File.Exists(_keyPath));
     }
 
     [Fact]
@@ -38,9 +56,9 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        var result = store.TryUnlock(code, itemId, "Der Film");
+        var result = store.TryUnlock(batch.Codes[0], itemId, "Der Film");
 
         Assert.Equal(UnlockStatus.Success, result.Status);
         Assert.NotNull(result.Grant);
@@ -56,9 +74,9 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        var result = store.TryUnlock(code);
+        var result = store.TryUnlock(batch.Codes[0]);
         Assert.Equal(UnlockStatus.Success, result.Status);
         Assert.Null(result.Grant!.ItemId);
 
@@ -70,17 +88,18 @@ public sealed class GrantStoreTests : IDisposable
     }
 
     [Fact]
-    public void Unlock_WithWrongCode_LeavesGrantPending()
+    public void Unlock_WithWrongCode_LeavesAllCodesPending()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var (grant, _) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
         var result = store.TryUnlock("000000");
 
         Assert.Equal(UnlockStatus.Invalid, result.Status);
-        Assert.Equal(GrantStatus.Pending, store.GetForUser(userId)!.Status);
-        Assert.Equal(GrantStatus.Pending, grant.Status);
+        Assert.All(store.GetAllForUser(userId), grant => Assert.Equal(GrantStatus.Pending, grant.Status));
+        Assert.Equal(10, store.GetAllForUser(userId).Count);
+        Assert.NotEmpty(batch.Codes);
     }
 
     [Fact]
@@ -89,27 +108,52 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        Assert.Equal(UnlockStatus.Success, store.TryUnlock(code, itemId, "Der Film").Status);
-        Assert.Equal(UnlockStatus.AlreadyUsed, store.TryUnlock(code, itemId, "Der Film").Status);
+        Assert.Equal(UnlockStatus.Success, store.TryUnlock(batch.Codes[0], itemId, "Der Film").Status);
+        Assert.Equal(UnlockStatus.AlreadyUsed, store.TryUnlock(batch.Codes[0], itemId, "Der Film").Status);
     }
 
     [Fact]
-    public void Unlock_SecondTimeWithOtherItem_DoesNotRebind()
+    public void Unlock_SecondCodeWhileActive_ReportsAlreadyActive()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var itemId = Guid.NewGuid();
-        var otherItemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 24);
-        store.TryUnlock(code, itemId, "Der Film");
+        var firstItemId = Guid.NewGuid();
+        var secondItemId = Guid.NewGuid();
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        var result = store.TryUnlock(code, otherItemId, "Anderer Film");
+        Assert.Equal(UnlockStatus.Success, store.TryUnlock(batch.Codes[0], firstItemId, "Film Eins").Status);
 
-        Assert.Equal(UnlockStatus.AlreadyUsed, result.Status);
-        Assert.Equal(itemId, store.GetForUser(userId)!.ItemId);
-        Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, otherItemId).Decision);
+        var result = store.TryUnlock(batch.Codes[1], secondItemId, "Film Zwei");
+
+        Assert.Equal(UnlockStatus.AlreadyActive, result.Status);
+        Assert.Equal("Film Eins", result.Grant!.ItemName);
+        Assert.Single(store.GetAllForUser(userId), grant => grant.Status == GrantStatus.Active);
+        Assert.Equal(9, store.GetAllForUser(userId).Count(grant => grant.Status == GrantStatus.Pending));
+    }
+
+    [Fact]
+    public void Unlock_AfterCompletion_AllowsNextCode()
+    {
+        var store = CreateStore();
+        var userId = Guid.NewGuid();
+        var firstItemId = Guid.NewGuid();
+        var secondItemId = Guid.NewGuid();
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
+
+        var first = store.TryUnlock(batch.Codes[0], firstItemId, "Film Eins");
+        Assert.True(store.Complete(first.Grant!.Id, releaseUser: false));
+
+        Assert.Single(store.GetAllForUser(userId), grant => grant.Status == GrantStatus.Completed);
+        Assert.Equal(9, store.GetAllForUser(userId).Count(grant => grant.Status == GrantStatus.Pending));
+        Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, secondItemId).Decision);
+
+        var second = store.TryUnlock(batch.Codes[1], secondItemId, "Film Zwei");
+
+        Assert.Equal(UnlockStatus.Success, second.Status);
+        Assert.Equal(GrantStatus.Active, second.Grant!.Status);
+        Assert.Equal(secondItemId, second.Grant.ItemId);
     }
 
     [Fact]
@@ -119,8 +163,8 @@ public sealed class GrantStoreTests : IDisposable
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
         var otherItemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 24);
-        store.TryUnlock(code, itemId, "Der Film");
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
+        store.TryUnlock(batch.Codes[0], itemId, "Der Film");
 
         Assert.Equal(PlaybackDecision.Allowed, store.Evaluate(userId, itemId).Decision);
         Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, otherItemId).Decision);
@@ -132,9 +176,12 @@ public sealed class GrantStoreTests : IDisposable
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        store.Create(userId, "Kind", 24);
+        store.CreateBatch(userId, "Kind", 10, 24);
 
-        Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, itemId).Decision);
+        var evaluation = store.Evaluate(userId, itemId);
+
+        Assert.Equal(PlaybackDecision.Blocked, evaluation.Decision);
+        Assert.Equal(GrantStatus.Pending, evaluation.Grant!.Status);
     }
 
     [Fact]
@@ -146,64 +193,86 @@ public sealed class GrantStoreTests : IDisposable
     }
 
     [Fact]
-    public void Complete_BlocksPlaybackAndInvalidatesCode()
+    public void Complete_WithoutRelease_KeepsRemainingCodes()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (grant, code) = store.Create(userId, "Kind", 24);
-        store.TryUnlock(code, itemId, "Der Film");
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
+        var unlocked = store.TryUnlock(batch.Codes[0], itemId, "Der Film");
 
-        Assert.True(store.Complete(grant.Id, releaseUser: false));
+        Assert.True(store.Complete(unlocked.Grant!.Id, releaseUser: false));
 
         var current = store.GetForUser(userId);
         Assert.NotNull(current);
-        Assert.Equal(GrantStatus.Completed, current.Status);
+        Assert.Equal(GrantStatus.Pending, current.Status);
         Assert.Equal(PlaybackDecision.Blocked, store.Evaluate(userId, itemId).Decision);
-        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(code).Status);
+        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(batch.Codes[0]).Status);
+        Assert.Equal(9, store.GetAllForUser(userId).Count(grant => grant.Status == GrantStatus.Pending));
     }
 
     [Fact]
-    public void Complete_WithRelease_RemovesRestriction()
+    public void Complete_WithRelease_RemovesAllCodesAndRestriction()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (grant, code) = store.Create(userId, "Kind", 24);
-        store.TryUnlock(code, itemId, "Der Film");
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
+        var unlocked = store.TryUnlock(batch.Codes[0], itemId, "Der Film");
 
-        Assert.True(store.Complete(grant.Id, releaseUser: true));
+        Assert.True(store.Complete(unlocked.Grant!.Id, releaseUser: true));
         Assert.Null(store.GetForUser(userId));
+        Assert.Empty(store.GetAllForUser(userId));
         Assert.Equal(PlaybackDecision.Unrestricted, store.Evaluate(userId, itemId).Decision);
+        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(batch.Codes[1]).Status);
     }
 
     [Fact]
-    public void Remove_LiftsRestriction()
+    public void RemoveBatch_InvalidatesAllRemainingCodes()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (grant, _) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        Assert.True(store.Remove(grant.Id));
-        Assert.False(store.Remove(grant.Id));
+        Assert.True(store.RemoveBatch(batch.BatchId));
+        Assert.False(store.RemoveBatch(batch.BatchId));
+        Assert.Empty(store.GetAllForUser(userId));
         Assert.Equal(PlaybackDecision.Unrestricted, store.Evaluate(userId, itemId).Decision);
+        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(batch.Codes[0]).Status);
     }
 
     [Fact]
-    public void ExpiredGrant_IsBlockedAndCodeIsInvalid()
+    public void Remove_RemovesSingleCodeOnly()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 24);
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
+        var grants = store.GetAllForUser(userId);
+
+        Assert.True(store.Remove(grants[0].Id));
+        Assert.False(store.Remove(grants[0].Id));
+        Assert.Equal(9, store.GetAllForUser(userId).Count);
+        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(batch.Codes[0]).Status);
+        Assert.Equal(UnlockStatus.Success, store.TryUnlock(batch.Codes[1], itemId, "Der Film").Status);
+    }
+
+    [Fact]
+    public void ExpiredBatch_IsBlockedAndCodesAreInvalid()
+    {
+        var store = CreateStore();
+        var userId = Guid.NewGuid();
+        var itemId = Guid.NewGuid();
+        var batch = store.CreateBatch(userId, "Kind", 10, 24);
 
         _clock.Advance(TimeSpan.FromHours(25));
 
         var evaluation = store.Evaluate(userId, itemId);
         Assert.Equal(PlaybackDecision.Blocked, evaluation.Decision);
         Assert.Equal(GrantStatus.Expired, evaluation.Grant!.Status);
-        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(code).Status);
+        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(batch.Codes[0]).Status);
+        Assert.All(store.GetAllForUser(userId), grant => Assert.Equal(GrantStatus.Expired, grant.Status));
     }
 
     [Fact]
@@ -211,27 +280,39 @@ public sealed class GrantStoreTests : IDisposable
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var (_, code) = store.Create(userId, "Kind", 0);
+        var batch = store.CreateBatch(userId, "Kind", 10, 0);
 
         _clock.Advance(TimeSpan.FromDays(3650));
 
-        Assert.Equal(UnlockStatus.Success, store.TryUnlock(code).Status);
+        Assert.Equal(UnlockStatus.Success, store.TryUnlock(batch.Codes[0]).Status);
     }
 
     [Fact]
-    public void Create_ReplacesExistingGrantForUser()
+    public void CreateBatch_ReplacesExistingBatchForUser()
     {
         var store = CreateStore();
         var userId = Guid.NewGuid();
-        var (_, firstCode) = store.Create(userId, "Kind", 24);
+        var firstBatch = store.CreateBatch(userId, "Kind", 10, 24);
 
         _clock.Advance(TimeSpan.FromMinutes(1));
-        var (_, secondCode) = store.Create(userId, "Kind", 24);
+        var secondBatch = store.CreateBatch(userId, "Kind", 10, 24);
 
-        Assert.Single(store.GetAll());
-        Assert.Null(store.GetForUser(userId)!.ItemId);
-        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(firstCode).Status);
-        Assert.Equal(UnlockStatus.Success, store.TryUnlock(secondCode).Status);
+        var grants = store.GetAllForUser(userId);
+        Assert.Equal(10, grants.Count);
+        Assert.All(grants, grant => Assert.Equal(secondBatch.BatchId, grant.BatchId));
+        Assert.Equal(UnlockStatus.Invalid, store.TryUnlock(firstBatch.Codes[0]).Status);
+        Assert.Equal(UnlockStatus.Success, store.TryUnlock(secondBatch.Codes[0]).Status);
+    }
+
+    [Fact]
+    public void CreateBatch_GeneratesDistinctCodesAcrossUsers()
+    {
+        var store = CreateStore();
+        var firstBatch = store.CreateBatch(Guid.NewGuid(), "Kind Eins", 10, 24);
+        var secondBatch = store.CreateBatch(Guid.NewGuid(), "Kind Zwei", 10, 24);
+
+        Assert.Empty(firstBatch.Codes.Intersect(secondBatch.Codes, StringComparer.Ordinal));
+        Assert.Equal(20, store.GetAll().Count);
     }
 
     [Fact]
@@ -239,17 +320,29 @@ public sealed class GrantStoreTests : IDisposable
     {
         var userId = Guid.NewGuid();
         var itemId = Guid.NewGuid();
-        string code;
 
         var firstStore = CreateStore();
-        (_, code) = firstStore.Create(userId, "Kind", 24);
+        var batch = firstStore.CreateBatch(userId, "Kind", 10, 24);
 
         var secondStore = CreateStore();
-        var result = secondStore.TryUnlock(code, itemId, "Der Film");
+        var result = secondStore.TryUnlock(batch.Codes[0], itemId, "Der Film");
 
         Assert.Equal(UnlockStatus.Success, result.Status);
         Assert.Equal(userId, result.Grant!.UserId);
         Assert.Equal(itemId, result.Grant.ItemId);
+        Assert.Equal(10, secondStore.GetAllForUser(userId).Count);
+    }
+
+    [Fact]
+    public void GetAllForUser_ReturnsCodesInBatchOrder()
+    {
+        var store = CreateStore();
+        var userId = Guid.NewGuid();
+        store.CreateBatch(userId, "Kind", 10, 24);
+
+        var grants = store.GetAllForUser(userId);
+
+        Assert.Equal(Enumerable.Range(1, 10), grants.Select(grant => grant.BatchIndex));
     }
 
     public void Dispose()
@@ -261,5 +354,14 @@ public sealed class GrantStoreTests : IDisposable
     }
 
     private GrantStore CreateStore()
-        => new(_filePath, _clock, NullLogger<GrantStore>.Instance);
+    {
+        var lookupKeyProvider = new CodeLookupKeyProvider(
+            _keyPath,
+            NullLogger<CodeLookupKeyProvider>.Instance);
+        return new GrantStore(
+            _filePath,
+            lookupKeyProvider,
+            _clock,
+            NullLogger<GrantStore>.Instance);
+    }
 }
