@@ -1,5 +1,7 @@
 # Movie Code
 
+<img src="assets/movie-code.png" alt="Movie Code" width="180">
+
 Ein Jellyfin-Plugin, mit dem ein Administrator für einen Benutzer ein Paket aus **10 Einmalcodes** erzeugt. Der Benutzer kann die Mediathek normal durchsuchen und Filme ansehen. Sobald er einen Film startet, fragt das Plugin einen **6-stelligen Einmalcode** in einem Popup im Web-Client ab. Jeder Code gilt genau einmal und gibt genau den Film frei, der danach gestartet wird. Es ist immer nur **ein Film gleichzeitig** freigegeben.
 
 Zielplattform: **Jellyfin 12.1** mit **.NET 10**.
@@ -133,7 +135,7 @@ Das Projekt ist so vorbereitet, dass GitHub Actions ein Release mit ZIP und `man
 ```powershell
 git init
 git add .
-git commit -m "Movie Code 1.0.2.0"
+git commit -m "Movie Code 1.0.2.1"
 git branch -M main
 git remote add origin https://github.com/CacheKingDev/Jellyfin-Addons.git
 git push -u origin main
@@ -144,11 +146,11 @@ git push -u origin main
 Vor dem Tag die Version in `Jellyfin.Plugin.MovieCode/Jellyfin.Plugin.MovieCode.csproj` und `build.yaml` erhöhen, dann:
 
 ```powershell
-git tag v1.0.2.0
-git push origin v1.0.2.0
+git tag v1.0.2.1
+git push origin v1.0.2.1
 ```
 
-Der Workflow `.github/workflows/release.yml` baut und testet das Plugin, erzeugt `MovieCode_1.0.2.0.zip` sowie `manifest.json` und veröffentlicht beides als GitHub-Release.
+Der Workflow `.github/workflows/release.yml` baut und testet das Plugin, erzeugt `MovieCode_1.0.2.1.zip` sowie `manifest.json` und veröffentlicht beides als GitHub-Release.
 
 ### 3. Repository in Jellyfin hinzufügen
 
@@ -167,7 +169,7 @@ Die URL zeigt immer auf das neueste Release, sodass weitere Versionen automatisc
 ### Hinweise
 
 - Der Workflow benötigt keine zusätzlichen Secrets; das mitgelieferte `GITHUB_TOKEN` besitzt durch `permissions: contents: write` die nötigen Rechte.
-- Der Tag muss mit der Plugin-Version übereinstimmen (z. B. `v1.0.2.0`).
+- Der Tag muss mit der Plugin-Version übereinstimmen (z. B. `v1.0.2.1`).
 - Releases dürfen nicht als Pre-Release markiert werden, sonst zeigt `releases/latest` nicht darauf.
 - Alternativ kann `manifest.json` auch über GitHub Pages bereitgestellt werden; die Release-Variante funktioniert jedoch ohne zusätzliche Einrichtung.
 
@@ -182,7 +184,7 @@ dotnet build Jellyfin.Plugin.MovieCode.slnx -c Release
 # Tests
 dotnet test Jellyfin.Plugin.MovieCode.slnx -c Release
 
-# Paket erzeugen (dist/MovieCode_1.0.2.0.zip)
+# Paket erzeugen (dist/MovieCode_1.0.2.1.zip)
 .\build.ps1
 ```
 
@@ -199,6 +201,7 @@ Jellyfin.Plugin.MovieCode/
                                    Script-Injection in den Web-Client
   Web/                             Freigabeseite, Popup-Skript und Admin-Panel für die Kindersicherung
 Jellyfin.Plugin.MovieCode.Tests/   Unit-Tests
+assets/                            Plugin-Bild für Katalog und README
 ```
 
 ### Freigabedaten

@@ -49,12 +49,18 @@ if (-not (Test-Path $assembly)) {
     throw "Plugin-DLL nicht gefunden: $assembly"
 }
 
+$image = Join-Path $root "assets\movie-code.png"
+if (-not (Test-Path $image)) {
+    throw "Plugin-Bild nicht gefunden: $image"
+}
+
 if (Test-Path $dist) { Remove-Item -Recurse -Force $dist }
 New-Item -ItemType Directory -Path $dist | Out-Null
 
 $staging = Join-Path $dist "MovieCode"
 New-Item -ItemType Directory -Path $staging | Out-Null
 Copy-Item $assembly $staging
+Copy-Item $image (Join-Path $staging "image.png")
 
 $meta = [ordered]@{
     category    = "General"
@@ -67,6 +73,7 @@ $meta = [ordered]@{
     version     = $version
     status      = "Active"
     autoUpdate  = $true
+    imagePath   = "image.png"
 } | ConvertTo-Json
 
 $utf8NoBom = New-Object System.Text.UTF8Encoding($false)

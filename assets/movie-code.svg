@@ -1,0 +1,72 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="512" height="512" viewBox="0 0 512 512" role="img" aria-label="Movie Code">
+  <defs>
+    <linearGradient id="background" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#06111d"/>
+      <stop offset="0.55" stop-color="#09283a"/>
+      <stop offset="1" stop-color="#0b4f6c"/>
+    </linearGradient>
+    <radialGradient id="glow" cx="50%" cy="38%" r="58%">
+      <stop offset="0" stop-color="#00a4dc" stop-opacity="0.42"/>
+      <stop offset="0.6" stop-color="#00a4dc" stop-opacity="0.12"/>
+      <stop offset="1" stop-color="#00a4dc" stop-opacity="0"/>
+    </radialGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#8beaf7"/>
+      <stop offset="1" stop-color="#00a4dc"/>
+    </linearGradient>
+    <linearGradient id="ticket" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#0c3145"/>
+      <stop offset="1" stop-color="#071c2a"/>
+    </linearGradient>
+    <filter id="softShadow" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000000" flood-opacity="0.45"/>
+    </filter>
+    <filter id="lockGlow" x="-40%" y="-40%" width="180%" height="180%">
+      <feDropShadow dx="0" dy="0" stdDeviation="12" flood-color="#00a4dc" flood-opacity="0.65"/>
+    </filter>
+  </defs>
+
+  <rect width="512" height="512" fill="url(#background)"/>
+  <rect width="512" height="512" fill="url(#glow)"/>
+
+  <!-- Filmstreifen / Ticket -->
+  <rect x="58" y="70" width="396" height="270" rx="30" fill="url(#ticket)" stroke="#1b6c8a" stroke-width="3" filter="url(#softShadow)"/>
+  <rect x="58" y="70" width="396" height="270" rx="30" fill="none" stroke="#6ee7f9" stroke-opacity="0.18" stroke-width="1.5"/>
+
+  <!-- Perforationen links und rechts -->
+  <g fill="#06111d">
+    <rect x="76" y="98" width="18" height="26" rx="7"/>
+    <rect x="76" y="150" width="18" height="26" rx="7"/>
+    <rect x="76" y="202" width="18" height="26" rx="7"/>
+    <rect x="76" y="254" width="18" height="26" rx="7"/>
+    <rect x="76" y="306" width="18" height="26" rx="7"/>
+
+    <rect x="418" y="98" width="18" height="26" rx="7"/>
+    <rect x="418" y="150" width="18" height="26" rx="7"/>
+    <rect x="418" y="202" width="18" height="26" rx="7"/>
+    <rect x="418" y="254" width="18" height="26" rx="7"/>
+    <rect x="418" y="306" width="18" height="26" rx="7"/>
+  </g>
+
+  <!-- Schloss -->
+  <g filter="url(#lockGlow)">
+    <path d="M210 200v-24c0-25.4 20.6-46 46-46s46 20.6 46 46v24" fill="none" stroke="url(#accent)" stroke-width="22" stroke-linecap="round"/>
+    <rect x="180" y="192" width="152" height="118" rx="26" fill="url(#accent)"/>
+    <circle cx="256" cy="240" r="17" fill="#06111d"/>
+    <rect x="247" y="246" width="18" height="38" rx="9" fill="#06111d"/>
+  </g>
+
+  <!-- Sechs Einmalcode-Stellen -->
+  <g>
+    <circle cx="166" cy="344" r="11" fill="#eafaff"/>
+    <circle cx="206" cy="344" r="11" fill="#eafaff"/>
+    <circle cx="246" cy="344" r="11" fill="#eafaff"/>
+    <circle cx="286" cy="344" r="11" fill="#eafaff"/>
+    <circle cx="326" cy="344" r="11" fill="#eafaff"/>
+    <circle cx="366" cy="344" r="11" fill="#6ee7f9"/>
+  </g>
+
+  <!-- Schrift -->
+  <text x="256" y="425" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="44" font-weight="800" letter-spacing="2" fill="#f4fbff">MOVIE CODE</text>
+  <text x="256" y="462" text-anchor="middle" font-family="Segoe UI, Arial, sans-serif" font-size="18" font-weight="600" letter-spacing="6" fill="#6ee7f9">EINMALCODE</text>
+</svg>

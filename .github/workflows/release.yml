@@ -66,6 +66,7 @@ jobs:
           ZIP_NAME="MovieCode_${VERSION}.zip"
           mkdir -p dist/stage
           cp Jellyfin.Plugin.MovieCode/bin/Release/net10.0/Jellyfin.Plugin.MovieCode.dll dist/stage/
+          cp assets/movie-code.png dist/stage/image.png
 
           jq -n \
             --arg name "$PLUGIN_NAME" \
@@ -84,7 +85,8 @@ jobs:
               targetAbi: $abi,
               version: $version,
               status: "Active",
-              autoUpdate: true
+              autoUpdate: true,
+              imagePath: "image.png"
             }' > dist/stage/meta.json
 
           (cd dist/stage && zip -q -r "../${ZIP_NAME}" .)
@@ -92,6 +94,7 @@ jobs:
           CHECKSUM="$(md5sum "dist/${ZIP_NAME}" | cut -d' ' -f1)"
           TIMESTAMP="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
           SOURCE_URL="https://github.com/${GITHUB_REPOSITORY}/releases/download/v${VERSION}/${ZIP_NAME}"
+          IMAGE_URL="https://raw.githubusercontent.com/${GITHUB_REPOSITORY}/main/assets/movie-code.png"
 
           jq -n \
             --arg name "$PLUGIN_NAME" \
@@ -101,6 +104,7 @@ jobs:
             --arg description "$PLUGIN_DESCRIPTION" \
             --arg overview "$PLUGIN_OVERVIEW" \
             --arg sourceUrl "$SOURCE_URL" \
+            --arg imageUrl "$IMAGE_URL" \
             --arg checksum "$CHECKSUM" \
             --arg timestamp "$TIMESTAMP" \
             '[{
@@ -110,7 +114,7 @@ jobs:
               overview: $overview,
               owner: "ben",
               category: "General",
-              imageUrl: "",
+              imageUrl: $imageUrl,
               versions: [{
                 version: $version,
                 changelog: ("Version " + $version),

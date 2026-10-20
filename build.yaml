@@ -1,8 +1,10 @@
 name: "Movie Code"
 guid: "6f2b1c9e-4a3d-4f7b-9c21-8e5d0a7b3c64"
-version: "1.0.2.0"
+version: "1.0.2.1"
 targetAbi: "12.1.0.0"
 framework: "net10.0"
+image: "assets/movie-code.png"
+imageUrl: "https://raw.githubusercontent.com/CacheKingDev/Jellyfin-Addons/main/assets/movie-code.png"
 overview: "Code-Popup beim Filmstart: 10 Einmalcodes, jeder gibt genau einen Film für einen Benutzer frei."
 description: >-
   Ein Administrator erzeugt in der Kindersicherung eines Benutzers ein Paket
